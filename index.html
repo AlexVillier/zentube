@@ -56,7 +56,7 @@
         }
         /* Custom Blur Glassmorphism */
         .glass-nav {
-            background: rgba(28, 28, 30, 0.75);
+            background: rgba(28, 28, 30, 0.85);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
         }
@@ -79,6 +79,29 @@
             width: 100%;
             height: 100%;
             border: 0;
+        }
+        /* Floating Mini Player Styles */
+        .mini-player-active {
+            position: fixed !important;
+            bottom: 70px !important;
+            right: 12px !important;
+            left: auto !important;
+            top: auto !important;
+            width: 220px !important;
+            height: auto !important;
+            z-index: 50 !important;
+            border-radius: 16px !important;
+            overflow: hidden !important;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.8), 0 10px 10px -5px rgba(0, 0, 0, 0.6) !important;
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
+            background: #1c1c1e !important;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        }
+        .mini-player-active .player-detail-section {
+            display: none !important;
+        }
+        .mini-player-active .mini-header-controls {
+            display: flex !important;
         }
         /* Hide scrollbars for clean UI */
         .no-scrollbar::-webkit-scrollbar {
@@ -129,17 +152,36 @@
     </main>
 
     <!-- Floating Video Player Sheet / Modal -->
-    <div id="player-modal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md hidden flex-col transition-opacity duration-300 opacity-0">
-        <!-- Close / Collapse Header -->
-        <div class="pt-safe px-4 py-3 flex items-center justify-between border-b border-ios-border/30 bg-ios-card/80">
+    <div id="player-modal" class="fixed inset-0 z-50 bg-black/95 backdrop-blur-md hidden flex-col transition-all duration-300 opacity-0">
+        <!-- Header Controls for Modal View -->
+        <div id="player-full-header" class="pt-safe px-4 py-3 flex items-center justify-between border-b border-ios-border/30 bg-ios-card/80">
             <button onclick="app.closePlayer()" class="flex items-center space-x-1 text-ios-blue font-medium py-1 px-2 -ml-2 rounded-lg active:bg-ios-elevated/50">
                 <i class="ph-bold ph-caret-down text-xl"></i>
                 <span>Close</span>
             </button>
-            <span id="player-channel-title" class="text-xs font-semibold text-ios-textSecondary truncate max-w-[200px]">Playing Video</span>
-            <button onclick="app.toggleBookmarkCurrent()" id="player-bookmark-btn" class="w-9 h-9 rounded-full flex items-center justify-center text-ios-textSecondary active:scale-95">
-                <i class="ph-bold ph-bookmark-simple text-xl"></i>
-            </button>
+            <span id="player-channel-title" class="text-xs font-semibold text-ios-textSecondary truncate max-w-[180px]">Playing Video</span>
+            <div class="flex items-center space-x-1">
+                <!-- Picture in Picture Floating Dock Button -->
+                <button onclick="app.toggleMiniPlayer()" title="Picture in Picture" class="w-9 h-9 rounded-full flex items-center justify-center text-ios-blue active:scale-95">
+                    <i class="ph-bold ph-arrows-in text-lg"></i>
+                </button>
+                <button onclick="app.toggleBookmarkCurrent()" id="player-bookmark-btn" class="w-9 h-9 rounded-full flex items-center justify-center text-ios-textSecondary active:scale-95">
+                    <i class="ph-bold ph-bookmark-simple text-xl"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Mini Header Controls (Only Visible in Docked PiP Mode) -->
+        <div id="player-mini-header" class="mini-header-controls hidden items-center justify-between bg-zinc-900/90 px-3 py-1.5 border-b border-zinc-700/50">
+            <span id="mini-player-title" class="text-[10px] font-bold text-white truncate max-w-[130px]">Video Title</span>
+            <div class="flex items-center space-x-1">
+                <button onclick="app.expandMiniPlayer()" class="text-ios-blue p-1 active:scale-110">
+                    <i class="ph-bold ph-arrows-out text-sm"></i>
+                </button>
+                <button onclick="app.closePlayer()" class="text-zinc-400 hover:text-white p-1 active:scale-110">
+                    <i class="ph-bold ph-x text-sm"></i>
+                </button>
+            </div>
         </div>
 
         <!-- Player Container -->
@@ -151,8 +193,8 @@
             </div>
         </div>
 
-        <!-- Video Details Section -->
-        <div class="flex-1 overflow-y-auto p-5 space-y-4">
+        <!-- Video Details Section (Hidden in Mini-Player Mode) -->
+        <div class="player-detail-section flex-1 overflow-y-auto p-5 space-y-4">
             <div>
                 <h1 id="player-video-title" class="text-lg font-bold leading-snug text-white">Video Title Loading...</h1>
                 <p id="player-video-meta" class="text-xs text-ios-textSecondary mt-1">Channel Name • Published Date</p>
@@ -160,6 +202,12 @@
 
             <!-- Action Toolbar -->
             <div class="flex items-center justify-around py-3 border-y border-ios-border/40">
+                <button onclick="app.toggleMiniPlayer()" class="flex flex-col items-center space-y-1 text-xs text-ios-blue active:text-white">
+                    <div class="w-10 h-10 rounded-full bg-ios-blue/10 flex items-center justify-center">
+                        <i class="ph-bold ph-arrows-in text-lg"></i>
+                    </div>
+                    <span>Pop Out</span>
+                </button>
                 <button onclick="app.openExternalYouTube()" class="flex flex-col items-center space-y-1 text-xs text-ios-textSecondary active:text-white">
                     <div class="w-10 h-10 rounded-full bg-ios-elevated flex items-center justify-center">
                         <i class="ph-bold ph-arrow-square-out text-lg"></i>
@@ -223,7 +271,7 @@
 
     <!-- Main JavaScript Logic -->
     <script>
-        // Store default sample channels (Tech & Science channels for fallback/demo)
+        // Store default sample channels
         const DEFAULT_CHANNELS = [
             { id: 'UCsXVk37bltHxD1rDPwtNM8Q', title: 'Kurzgesagt – In a Nutshell', customUrl: '@kurzgesagt' },
             { id: 'UCBJycsmduvYEL83R_U4JraQ', title: 'MKBHD', customUrl: '@mkbhd' },
@@ -265,8 +313,8 @@
                 channelTitle: 'Veritasium',
                 channelId: 'UC3LqW4ijqsou05KA6OrL0Wg',
                 publishedAt: '2023-12-05T15:30:00Z',
-                thumbnail: 'https://i.ytimg.com/vi/4I33XTh_E40/hqdefault.jpg',
-                description: 'Exploring the science of visual perception and light refraction.'
+                description: 'Exploring the science of visual perception and light refraction.',
+                thumbnail: 'https://i.ytimg.com/vi/4I33XTh_E40/hqdefault.jpg'
             }
         ];
 
@@ -280,9 +328,16 @@
                 
                 this.channels = JSON.parse(localStorage.getItem('zentube_channels')) || DEFAULT_CHANNELS;
                 this.savedVideoIds = JSON.parse(localStorage.getItem('zentube_saved')) || [];
+                
+                // Local Watch Progress Dictionary: { videoId: { currentTime: seconds, duration: seconds, percent: number, completed: boolean } }
+                this.watchHistory = JSON.parse(localStorage.getItem('zentube_watch_history')) || {};
+
                 this.videos = [];
                 this.currentVideo = null;
                 this.tokenClient = null;
+                this.ytPlayer = null;
+                this.progressInterval = null;
+                this.isMiniPlayer = false;
 
                 this.init();
             }
@@ -391,7 +446,6 @@
                     });
 
                     if (res.status === 401) {
-                        // Access Token expired
                         this.showToast('Session expired. Please sign in again.');
                         this.signOut();
                         return;
@@ -424,7 +478,6 @@
             switchTab(tabName) {
                 this.activeTab = tabName;
                 
-                // Update Bottom Navigation Icon States
                 const tabs = ['feed', 'search', 'channels', 'saved'];
                 tabs.forEach(t => {
                     const btn = document.getElementById(`tab-${t}`);
@@ -440,7 +493,6 @@
                     }
                 });
 
-                // Render Content View
                 const content = document.getElementById('app-content');
                 content.scrollTop = 0;
 
@@ -474,14 +526,12 @@
 
             // --- API & DATA FETCHING ---
             async fetchFeed() {
-                // If authenticated with OAuth token, fetch via auth header or fallback to API key / demo
                 if (!this.apiKey && !this.accessToken) {
                     return MOCK_VIDEOS;
                 }
 
                 try {
                     let allVideos = [];
-                    // Fetch latest videos from top subscribed channels
                     const activeChannels = this.channels.slice(0, 8);
                     
                     for (let ch of activeChannels) {
@@ -512,7 +562,6 @@
                         }
                     }
 
-                    // Sort chronologically
                     allVideos.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
                     return allVideos.length > 0 ? allVideos : MOCK_VIDEOS;
                 } catch (err) {
@@ -560,11 +609,44 @@
                 }
             }
 
+            // --- WATCH PROGRESS TRACKING ---
+
+            startProgressTracker() {
+                this.stopProgressTracker();
+                this.progressInterval = setInterval(() => {
+                    if (this.ytPlayer && typeof this.ytPlayer.getCurrentTime === 'function') {
+                        const currentTime = this.ytPlayer.getCurrentTime();
+                        const duration = this.ytPlayer.getDuration();
+                        if (duration > 0 && this.currentVideo) {
+                            const percent = Math.floor((currentTime / duration) * 100);
+                            const completed = percent >= 90;
+                            
+                            this.watchHistory[this.currentVideo.id] = {
+                                currentTime,
+                                duration,
+                                percent,
+                                completed,
+                                lastWatched: Date.now()
+                            };
+
+                            localStorage.setItem('zentube_watch_history', JSON.stringify(this.watchHistory));
+                        }
+                    }
+                }, 2000);
+            }
+
+            stopProgressTracker() {
+                if (this.progressInterval) {
+                    clearInterval(this.progressInterval);
+                    this.progressInterval = null;
+                }
+            }
+
             // --- VIEW RENDERERS ---
 
             async renderFeedView() {
                 const container = document.getElementById('app-content');
-                const statusBadge = this.accessToken ? 'YouTube Account Synced' : (this.apiKey ? 'API Key Mode' : 'Demo Mode');
+                const statusBadge = this.accessToken ? 'YouTube Synced' : (this.apiKey ? 'API Key Mode' : 'Demo Mode');
                 
                 container.innerHTML = `
                     <div class="flex items-center justify-between mb-4">
@@ -629,7 +711,7 @@
                         <div id="search-results" class="space-y-4 pt-2">
                             <div class="text-center py-12 text-ios-textSecondary">
                                 <i class="ph-bold ph-film-strip text-4xl mb-2 text-zinc-700"></i>
-                                <p class="text-xs">Search clean YouTube videos without algorithmic feed clutter.</p>
+                                <p class="text-xs">Search clean YouTube videos without algorithmic clutter.</p>
                             </div>
                         </div>
                     </div>
@@ -768,6 +850,20 @@
                             </div>
                         </div>
 
+                        <!-- Local Watch History Clear Action -->
+                        <div class="bg-ios-card/80 border border-ios-border/40 p-4 rounded-2xl space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-2">
+                                    <i class="ph-bold ph-clock-counter-clockwise text-ios-accent text-lg"></i>
+                                    <h3 class="text-sm font-semibold text-white">Local Watch History</h3>
+                                </div>
+                                <button onclick="app.clearWatchHistory()" class="text-xs text-ios-coral font-semibold">Clear</button>
+                            </div>
+                            <p class="text-xs text-ios-textSecondary">
+                                ${Object.keys(this.watchHistory).length} videos stored with local progress indicators.
+                            </p>
+                        </div>
+
                         <!-- Developer API Key Fallback Section -->
                         <div class="bg-ios-card/80 border border-ios-border/40 p-4 rounded-2xl space-y-3">
                             <div class="flex items-center space-x-2">
@@ -787,7 +883,14 @@
                 `;
             }
 
-            // --- SAVE SETTINGS ---
+            clearWatchHistory() {
+                if (confirm('Clear local watch progress indicators?')) {
+                    this.watchHistory = {};
+                    localStorage.removeItem('zentube_watch_history');
+                    this.showToast('Watch history cleared');
+                    this.renderSettingsView();
+                }
+            }
 
             saveClientId() {
                 const val = document.getElementById('client-id-input')?.value.trim();
@@ -809,14 +912,40 @@
             createVideoCardHTML(video) {
                 const isSaved = this.savedVideoIds.includes(video.id);
                 const timeAgo = this.formatDate(video.publishedAt);
+                const progress = this.watchHistory[video.id];
+
+                // Render Badge State: Watched (>=90%), In Progress, or None
+                let badgeHTML = '';
+                let progressBarHTML = '';
+
+                if (progress) {
+                    if (progress.completed) {
+                        badgeHTML = `
+                            <div class="absolute top-2 left-2 bg-ios-accent/90 backdrop-blur-md text-black text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center space-x-1 shadow-md">
+                                <i class="ph-bold ph-check text-xs"></i>
+                                <span>Watched</span>
+                            </div>
+                        `;
+                        progressBarHTML = `<div class="absolute bottom-0 left-0 right-0 h-1 bg-ios-accent"></div>`;
+                    } else if (progress.percent > 0) {
+                        badgeHTML = `
+                            <div class="absolute top-2 left-2 bg-black/80 backdrop-blur-md text-white text-[10px] font-medium px-2 py-0.5 rounded-full shadow-md border border-white/10">
+                                ${progress.percent}% watched
+                            </div>
+                        `;
+                        progressBarHTML = `<div class="absolute bottom-0 left-0 h-1 bg-ios-blue" style="width: ${progress.percent}%"></div>`;
+                    }
+                }
 
                 return `
                     <div class="glass-card border border-ios-border/40 rounded-2xl overflow-hidden shadow-sm active:scale-[0.98] transition-transform duration-150" onclick="app.openPlayer('${video.id}')">
                         <div class="relative w-full aspect-video bg-zinc-900">
                             <img src="${video.thumbnail}" alt="${video.title}" class="w-full h-full object-cover" loading="lazy" onerror="this.src='https://placehold.co/600x337/1c1c1e/ffffff?text=Video+Thumbnail'" />
+                            ${badgeHTML}
                             <div class="absolute bottom-2 right-2 bg-black/80 backdrop-blur-sm text-white text-[10px] font-semibold px-2 py-0.5 rounded-md">
-                                Watch
+                                Play
                             </div>
+                            ${progressBarHTML}
                         </div>
                         
                         <div class="p-3.5 flex items-start justify-between space-x-2">
@@ -855,8 +984,10 @@
                 if (!video) return;
 
                 this.currentVideo = video;
+                this.isMiniPlayer = false;
 
                 document.getElementById('player-video-title').innerText = video.title;
+                document.getElementById('mini-player-title').innerText = video.title;
                 document.getElementById('player-channel-title').innerText = video.channelTitle;
                 document.getElementById('player-video-meta').innerText = `${video.channelTitle} • ${this.formatDate(video.publishedAt)}`;
                 document.getElementById('player-video-description').innerText = video.description || 'No description provided.';
@@ -864,22 +995,64 @@
                 this.updatePlayerBookmarkBtn();
 
                 const modal = document.getElementById('player-modal');
-                modal.classList.remove('hidden');
-                setTimeout(() => {
-                    modal.classList.remove('opacity-0');
-                }, 10);
+                modal.className = 'fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col transition-all duration-300 opacity-100';
+
+                // Resume start time if previously watched
+                const savedProgress = this.watchHistory[videoId];
+                const startTime = (savedProgress && !savedProgress.completed) ? Math.floor(savedProgress.currentTime) : 0;
 
                 const placeholder = document.getElementById('yt-player-placeholder');
-                placeholder.innerHTML = `<iframe id="yt-iframe" src="https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&enablejsapi=1&modestbranding=1&rel=0" allow="autoplay; encrypted-media" allowfullscreen class="w-full h-full rounded-none"></iframe>`;
+                placeholder.innerHTML = `<iframe id="yt-iframe" src="https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&enablejsapi=1&modestbranding=1&rel=0&start=${startTime}" allow="autoplay; encrypted-media" allowfullscreen class="w-full h-full rounded-none"></iframe>`;
+
+                // Initialize YouTube JS API player for tracking progress
+                setTimeout(() => {
+                    if (window.YT && window.YT.Player) {
+                        this.ytPlayer = new YT.Player('yt-iframe', {
+                            events: {
+                                'onStateChange': (event) => {
+                                    if (event.data === YT.PlayerState.PLAYING) {
+                                        this.startProgressTracker();
+                                    } else {
+                                        this.stopProgressTracker();
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }, 1000);
+            }
+
+            toggleMiniPlayer() {
+                const modal = document.getElementById('player-modal');
+                if (!this.isMiniPlayer) {
+                    this.isMiniPlayer = true;
+                    modal.classList.add('mini-player-active');
+                    this.showToast('Docked into Mini-Player');
+                } else {
+                    this.expandMiniPlayer();
+                }
+            }
+
+            expandMiniPlayer() {
+                const modal = document.getElementById('player-modal');
+                this.isMiniPlayer = false;
+                modal.classList.remove('mini-player-active');
             }
 
             closePlayer() {
+                this.stopProgressTracker();
                 const modal = document.getElementById('player-modal');
                 modal.classList.add('opacity-0');
                 setTimeout(() => {
                     modal.classList.add('hidden');
+                    modal.classList.remove('mini-player-active');
                     document.getElementById('yt-player-placeholder').innerHTML = '';
                     this.currentVideo = null;
+                    this.ytPlayer = null;
+                    this.isMiniPlayer = false;
+                    
+                    // Re-render feed to reflect updated watch progress badges
+                    if (this.activeTab === 'feed') this.renderFeedView();
                 }, 300);
             }
 
