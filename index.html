@@ -489,9 +489,7 @@
         <span>Subscriptions Feed</span>
         <span id="sync-status" style="font-size: 11px; color: var(--text-secondary);">Demo Mode</span>
       </div>
-      <div class="video-grid" id="video-grid">
-        <!-- Dynamic video cards populated here -->
-      </div>
+      <div class="video-grid" id="video-grid"></div>
     </div>
 
     <!-- Channels View -->
@@ -528,7 +526,7 @@
     </div>
   </main>
 
-  <!-- Channel Detail Sub-View Overlay -->
+  <!-- Channel Detail Overlay -->
   <div class="channel-detail-view" id="channel-detail-view">
     <div class="channel-detail-header">
       <button class="icon-btn-circle" onclick="closeChannelDetail()">←</button>
@@ -550,15 +548,12 @@
     <div class="player-header">
       <span class="video-title" id="player-title" style="font-size: 14px;">Playing Video</span>
       <div class="player-actions">
-        <!-- Native System PiP HTML5 Stream Toggle -->
-        <button class="icon-btn" onclick="enableNativeSystemPiP()" title="System PiP (HTML5)">
+        <button class="icon-btn" id="pip-btn" onclick="enableNativeSystemPiP()" title="System PiP (HTML5)">
           <span>System PiP</span>
         </button>
-        <!-- Dock / In-App PiP Button -->
         <button class="icon-btn-circle" onclick="toggleDockPlayer()" title="Dock Mini-Player">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
         </button>
-        <!-- Close Player -->
         <button class="icon-btn-circle" onclick="closePlayer()">✕</button>
       </div>
     </div>
@@ -596,7 +591,6 @@
   </nav>
 
   <script>
-    // App State
     let ytPlayer = null;
     let tokenClient = null;
     let accessToken = localStorage.getItem('zentube_token') || null;
@@ -606,7 +600,6 @@
     let progressInterval = null;
     let activeFeedVideos = [];
 
-    // Demo Feed Data Fallback
     const demoVideos = [
       { id: 'dQw4w9WgXcQ', title: 'Rick Astley - Never Gonna Give You Up', channel: 'Rick Astley', duration: 213, thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg' },
       { id: 'L_LUpnjgPso', title: 'Official Launch - iOS Design Overview', channel: 'Apple', duration: 600, thumbnail: 'https://i.ytimg.com/vi/L_LUpnjgPso/mqdefault.jpg' }
@@ -620,7 +613,6 @@
 
     function onYouTubeIframeAPIReady() {}
 
-    // Initialize GIS Auth Client with Silent Re-Auth Support
     function initGoogleAuth() {
       if (!clientId || !window.google) return;
 
@@ -689,13 +681,11 @@
       }
     }
 
-    // Robust Subscribed Channels Feed Fetcher
     async function fetchSubscribedChannelsFeed() {
       if (!accessToken) return;
       try {
         document.getElementById('sync-status').textContent = 'Updating Feed...';
         
-        // Fetch user's subscriptions including content details for reliable playlist resolution
         const subRes = await fetch('https://www.googleapis.com/youtube/v3/subscriptions?mine=true&part=snippet,contentDetails&maxResults=15', {
           headers: { Authorization: `Bearer ${accessToken}` }
         });
@@ -707,12 +697,9 @@
 
         let allVideos = [];
         
-        // Loop through subscriptions to get recent playlist uploads safely
         for (const sub of subData.items) {
           try {
             const channelId = sub.snippet.resourceId.channelId;
-            
-            // Step 1: Query channel details to get the exact uploads playlist ID safely
             const channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?id=${channelId}&part=contentDetails`, {
               headers: { Authorization: `Bearer ${accessToken}` }
             });
@@ -721,7 +708,6 @@
             if (channelData.items && channelData.items.length > 0) {
               const uploadsPlaylistId = channelData.items[0].contentDetails.relatedPlaylists.uploads;
 
-              // Step 2: Fetch recent items from the uploads playlist
               const playlistRes = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?playlistId=${uploadsPlaylistId}&part=snippet&maxResults=3`, {
                 headers: { Authorization: `Bearer ${accessToken}` }
               });
@@ -740,11 +726,10 @@
               }
             }
           } catch (innerErr) {
-            console.warn('Skipping channel feed due to error:', innerErr);
+            console.warn('Skipping channel:', innerErr);
           }
         }
 
-        // Sort chronologically (newest first)
         allVideos.sort((a, b) => b.publishedAt - a.publishedAt);
         activeFeedVideos = allVideos;
         
@@ -764,7 +749,6 @@
       }
     }
 
-    // Render Subscribed Channels List & Tap Handlers
     function renderChannelsList(channels) {
       const list = document.getElementById('channels-list');
       list.innerHTML = '';
@@ -785,7 +769,6 @@
       });
     }
 
-    // Open Subscribed Channel Videos Sub-View
     async function openChannelDetail(channelId, channelTitle, avatarUrl) {
       document.getElementById('channel-detail-name').textContent = channelTitle;
       document.getElementById('channel-detail-avatar').src = avatarUrl;
@@ -825,7 +808,6 @@
       document.getElementById('channel-detail-view').classList.remove('active');
     }
 
-    // Search Execution
     async function executeSearch() {
       const query = document.getElementById('search-input').value.trim();
       if (!query) return;
@@ -851,7 +833,6 @@
       }
     }
 
-    // Generic Video Feed Renderer
     function renderFeed(videos, containerId) {
       const grid = document.getElementById(containerId);
       if (!grid) return;
@@ -886,7 +867,6 @@
       });
     }
 
-    // Video Player Logic
     function openPlayer(videoId, title, channel) {
       currentVideoId = videoId;
       const modal = document.getElementById('player-modal');
@@ -922,33 +902,60 @@
       startProgressTracking();
     }
 
-    // System Level PiP via Open-Source Video Stream Proxy Tag (Safari Native)
+    // Robust System PiP Stream Fetcher (Multi-Instance Fallback)
     async function enableNativeSystemPiP() {
       if (!currentVideoId) return;
       const videoEl = document.getElementById('native-pip-video');
       const ytEl = document.getElementById('youtube-player');
+      const pipBtn = document.getElementById('pip-btn');
 
-      try {
-        const res = await fetch(`https://inv.nadeko.net/api/v1/videos/${currentVideoId}`);
-        const data = await res.json();
+      pipBtn.textContent = 'Connecting...';
 
-        if (data.formatStreams && data.formatStreams.length > 0) {
-          const streamUrl = data.formatStreams[0].url;
-          ytEl.style.display = 'none';
-          videoEl.style.display = 'block';
-          videoEl.src = streamUrl;
-          videoEl.play();
+      // Pool of public proxy instances to attempt
+      const instances = [
+        'https://inv.nadeko.net',
+        'https://invidious.nerdvpn.de',
+        'https://inv.thepixora.com',
+        'https://invidious.drgns.space'
+      ];
 
-          if (videoEl.webkitSetPresentationMode) {
-            videoEl.webkitSetPresentationMode('picture-in-picture');
-          } else if (videoEl.requestPictureInPicture) {
-            videoEl.requestPictureInPicture();
+      let streamUrl = null;
+
+      for (const host of instances) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+          const res = await fetch(`${host}/api/v1/videos/${currentVideoId}`, { signal: controller.signal });
+          clearTimeout(timeoutId);
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data.formatStreams && data.formatStreams.length > 0) {
+              streamUrl = data.formatStreams[0].url;
+              break;
+            }
           }
-        } else {
-          alert('Native PiP stream fallback unavailable for this video.');
+        } catch (e) {
+          console.warn(`Instance ${host} failed, trying next...`);
         }
-      } catch (err) {
-        alert('Could not fetch native PiP stream. Using in-app Dock Player instead.');
+      }
+
+      pipBtn.textContent = 'System PiP';
+
+      if (streamUrl) {
+        ytEl.style.display = 'none';
+        videoEl.style.display = 'block';
+        videoEl.src = streamUrl;
+        videoEl.play();
+
+        if (videoEl.webkitSetPresentationMode) {
+          videoEl.webkitSetPresentationMode('picture-in-picture');
+        } else if (videoEl.requestPictureInPicture) {
+          videoEl.requestPictureInPicture();
+        }
+      } else {
+        alert('Native PiP stream proxy unavailable. Use standard full-screen or the Dock Player.');
       }
     }
 
@@ -1001,7 +1008,6 @@
       }
     }
 
-    // Tab Navigation
     function switchTab(viewId, el) {
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
