@@ -11,7 +11,7 @@
   <meta name="theme-color" content="#0d0d0e" />
 
   <!-- Google Identity Services (GIS) Library -->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://accounts.google.com/gsi/client" async defer onload="initGoogleAuth()"></script>
   <!-- YouTube iFrame API -->
   <script src="https://www.youtube.com/iframe_api"></script>
 
@@ -94,6 +94,26 @@
       letter-spacing: -0.5px;
     }
 
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .icon-btn-sm {
+      background: var(--bg-surface-elevated);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
     .auth-btn {
       background: var(--bg-surface-elevated);
       color: var(--text-primary);
@@ -125,6 +145,34 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+    }
+
+    /* Search Bar */
+    .search-box {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .search-input {
+      flex: 1;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      outline: none;
+    }
+
+    .search-btn {
+      background: var(--accent-color);
+      color: #fff;
+      border: none;
+      padding: 0 16px;
+      border-radius: 12px;
+      font-weight: 600;
+      cursor: pointer;
     }
 
     /* Video Feed Grid */
@@ -340,7 +388,7 @@
       font-size: 11px;
       gap: 4px;
       cursor: pointer;
-      width: 33%;
+      width: 25%;
     }
 
     .nav-item.active {
@@ -401,9 +449,12 @@
       <div class="logo-icon"></div>
       <div class="logo-text">ZenTube</div>
     </div>
-    <button class="auth-btn" id="auth-btn" onclick="handleAuthClick()">
-      <span>Sign In</span>
-    </button>
+    <div class="header-actions">
+      <button class="icon-btn-sm" onclick="refreshCurrentFeed()" title="Refresh Feed">🔄</button>
+      <button class="auth-btn" id="auth-btn" onclick="handleAuthClick()">
+        <span>Sign In</span>
+      </button>
+    </div>
   </header>
 
   <!-- Main Content Area -->
@@ -419,6 +470,18 @@
       </div>
     </div>
 
+    <!-- Search View -->
+    <div id="search-view" class="view">
+      <div class="section-title">Search Videos</div>
+      <div class="search-box">
+        <input type="text" id="search-input" class="search-input" placeholder="Search YouTube..." onkeypress="handleSearchKeyPress(event)" />
+        <button class="search-btn" onclick="executeSearch()">Search</button>
+      </div>
+      <div class="video-grid" id="search-grid">
+        <!-- Search results populated here -->
+      </div>
+    </div>
+
     <!-- Channels View -->
     <div id="channels-view" class="view">
       <div class="section-title">Subscribed Channels</div>
@@ -430,6 +493,12 @@
     <!-- Settings View -->
     <div id="settings-view" class="view">
       <div class="section-title">Settings & OAuth</div>
+      <div class="settings-card">
+        <label style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">Google API Key (Optional for Public Search)</label>
+        <input type="text" id="api-key-input" class="input-field" placeholder="Paste YouTube Data API Key here" />
+        <button class="save-btn" onclick="saveApiKey()">Save API Key</button>
+      </div>
+
       <div class="settings-card">
         <label style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">Google OAuth Client ID</label>
         <input type="text" id="client-id-input" class="input-field" placeholder="Paste your OAuth Client ID here" />
@@ -474,6 +543,10 @@
       <div class="nav-icon">📺</div>
       <span>Feed</span>
     </div>
+    <div class="nav-item" onclick="switchTab('search-view', this)">
+      <div class="nav-icon">🔍</div>
+      <span>Search</span>
+    </div>
     <div class="nav-item" onclick="switchTab('channels-view', this)">
       <div class="nav-icon">👥</div>
       <span>Channels</span>
@@ -490,9 +563,11 @@
     let tokenClient = null;
     let accessToken = localStorage.getItem('zentube_token') || null;
     let clientId = localStorage.getItem('zentube_client_id') || '';
+    let apiKey = localStorage.getItem('zentube_api_key') || '';
     let watchProgress = JSON.parse(localStorage.getItem('zentube_watch_progress') || '{}');
     let currentVideoId = null;
     let progressInterval = null;
+    let currentFeedVideos = [];
 
     // Demo Feed Data
     const demoVideos = [
@@ -502,8 +577,9 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('client-id-input').value = clientId;
-      renderFeed(demoVideos);
-      initGoogleAuth();
+      document.getElementById('api-key-input').value = apiKey;
+      currentFeedVideos = demoVideos;
+      renderFeed(demoVideos, 'video-grid');
     });
 
     // YouTube API Ready Callback
@@ -517,19 +593,25 @@
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: clientId,
         scope: 'https://www.googleapis.com/auth/youtube.readonly',
+        prompt: '', // Silent token restoration if session active
         callback: (response) => {
           if (response.access_token) {
             accessToken = response.access_token;
             localStorage.setItem('zentube_token', accessToken);
             updateAuthUI(true);
+            refreshSubscriptionFeed();
             fetchSubscriptions();
+          } else if (response.error) {
+            console.warn('OAuth error / user unauthenticated:', response.error);
+            updateAuthUI(false);
           }
         },
       });
 
       if (accessToken) {
         updateAuthUI(true);
-        fetchSubscriptions();
+        // Attempt silent token validation/refresh
+        tokenClient.requestAccessToken({ prompt: 'none' });
       }
     }
 
@@ -538,12 +620,13 @@
         accessToken = null;
         localStorage.removeItem('zentube_token');
         updateAuthUI(false);
-        renderFeed(demoVideos);
+        currentFeedVideos = demoVideos;
+        renderFeed(demoVideos, 'video-grid');
       } else if (tokenClient) {
-        tokenClient.requestAccessToken();
+        tokenClient.requestAccessToken({ prompt: 'consent' });
       } else {
         alert('Please save a valid Google OAuth Client ID in Settings first.');
-        switchTab('settings-view', document.querySelectorAll('.nav-item')[2]);
+        switchTab('settings-view', document.querySelectorAll('.nav-item')[3]);
       }
     }
 
@@ -571,7 +654,103 @@
       }
     }
 
-    // Fetch User Subscriptions from YouTube Data API
+    function saveApiKey() {
+      const val = document.getElementById('api-key-input').value.trim();
+      apiKey = val;
+      localStorage.setItem('zentube_api_key', apiKey);
+      alert('API Key Saved!');
+    }
+
+    function refreshCurrentFeed() {
+      if (accessToken) {
+        refreshSubscriptionFeed();
+      } else {
+        renderFeed(demoVideos, 'video-grid');
+      }
+    }
+
+    // Fetch Recent Activity / Feed from Subscriptions
+    async function refreshSubscriptionFeed() {
+      if (!accessToken) return;
+      const status = document.getElementById('sync-status');
+      status.textContent = 'Refreshing...';
+      
+      try {
+        const res = await fetch('https://www.googleapis.com/youtube/v3/activities?mine=true&part=snippet,contentDetails&maxResults=25', {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        const data = await res.json();
+        if (data.items) {
+          const videos = data.items
+            .filter(item => item.snippet.type === 'upload' && item.contentDetails.upload)
+            .map(item => ({
+              id: item.contentDetails.upload.videoId,
+              title: item.snippet.title,
+              channel: item.snippet.channelTitle,
+              thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url
+            }));
+
+          currentFeedVideos = videos.length > 0 ? videos : demoVideos;
+          renderFeed(currentFeedVideos, 'video-grid');
+          status.textContent = 'Synced with YouTube';
+        } else {
+          status.textContent = 'Sync Failed';
+        }
+      } catch (err) {
+        console.error('Error fetching feed:', err);
+        status.textContent = 'Sync Error';
+      }
+    }
+
+    // Search Execution
+    async function executeSearch() {
+      const query = document.getElementById('search-input').value.trim();
+      if (!query) return;
+
+      const grid = document.getElementById('search-grid');
+      grid.innerHTML = '<p style="color: var(--text-secondary);">Searching...</p>';
+
+      try {
+        let url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=20&q=${encodeURIComponent(query)}`;
+        let headers = {};
+
+        if (accessToken) {
+          headers['Authorization'] = `Bearer ${accessToken}`;
+        } else if (apiKey) {
+          url += `&key=${apiKey}`;
+        } else {
+          alert('Please sign in or provide a YouTube Data API Key in Settings to search.');
+          grid.innerHTML = '';
+          return;
+        }
+
+        const res = await fetch(url, { headers });
+        const data = await res.json();
+
+        if (data.items) {
+          const searchResults = data.items.map(item => ({
+            id: item.id.videoId,
+            title: item.snippet.title,
+            channel: item.snippet.channelTitle,
+            thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url
+          }));
+          renderFeed(searchResults, 'search-grid');
+        } else {
+          grid.innerHTML = '<p style="color: var(--text-secondary);">No results found.</p>';
+        }
+      } catch (err) {
+        console.error('Search error:', err);
+        grid.innerHTML = '<p style="color: var(--text-secondary);">Search failed. Please check network or API settings.</p>';
+      }
+    }
+
+    function handleSearchKeyPress(e) {
+      if (e.key === 'Enter') {
+        executeSearch();
+      }
+    }
+
+    // Fetch User Subscriptions List
     async function fetchSubscriptions() {
       if (!accessToken) return;
       try {
@@ -587,10 +766,15 @@
       }
     }
 
-    // Render Feed Grid with Local Watch Badges
-    function renderFeed(videos) {
-      const grid = document.getElementById('video-grid');
+    // Render Video Grid with Watch Badges
+    function renderFeed(videos, targetGridId = 'video-grid') {
+      const grid = document.getElementById(targetGridId);
       grid.innerHTML = '';
+
+      if (videos.length === 0) {
+        grid.innerHTML = '<p style="color: var(--text-secondary);">No videos found.</p>';
+        return;
+      }
 
       videos.forEach(v => {
         const prog = watchProgress[v.id] || { currentTime: 0, duration: v.duration || 0 };
@@ -689,7 +873,7 @@
           if (duration > 0) {
             watchProgress[currentVideoId] = { currentTime, duration, updatedAt: Date.now() };
             localStorage.setItem('zentube_watch_progress', JSON.stringify(watchProgress));
-            renderFeed(demoVideos);
+            renderFeed(currentFeedVideos, 'video-grid');
           }
         }
       }, 3000);
@@ -715,7 +899,7 @@
       if (confirm('Clear all local watch progress data?')) {
         watchProgress = {};
         localStorage.removeItem('zentube_watch_progress');
-        renderFeed(demoVideos);
+        renderFeed(currentFeedVideos, 'video-grid');
       }
     }
 
