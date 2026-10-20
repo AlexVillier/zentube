@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en" class="dark h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>ZenTube - Minimalist YouTube Interface</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Phosphor Icons for iOS-style crisp SVG icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Google Identity Services (GIS) Library -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        ios: {
+                            bg: '#000000',
+                            card: '#1c1c1e',
+                            elevated: '#2c2c2e',
+                            textPrimary: '#ffffff',
+                            textSecondary: '#8e8e93',
+                            accent: '#30d158', // iOS Green accent
+                            coral: '#ff453a',
+                            blue: '#0a84ff',
+                            border: '#2c2c2e'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"SF Pro Text"', 'system-ui', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* iOS Smooth Scrolling & Touch Optimizations */
+        * {
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        body {
+            background-color: #000000;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+            overflow-x: hidden;
+            touch-action: manipulation;
+        }
+        .pb-safe {
+            padding-bottom: env(safe-area-inset-bottom, 20px);
+        }
+        .pt-safe {
+            padding-top: env(safe-area-inset-top, 20px);
+        }
+        /* Custom Blur Glassmorphism */
+        .glass-nav {
+            background: rgba(28, 28, 30, 0.75);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .glass-card {
+            background: rgba(28, 28, 30, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        /* Aspect Ratio for Responsive Player */
+        .aspect-video-container {
+            position: relative;
+            padding-bottom: 56.25%; /* 16:9 */
+            height: 0;
+            overflow: hidden;
+        }
+        .aspect-video-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+        /* Hide scrollbars for clean UI */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        /* Custom Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col bg-black text-white antialiased selection:bg-ios-blue">
+
+    <!-- Top Safe Area Header / App Bar -->
+    <header class="sticky top-0 z-30 glass-nav border-b border-ios-border/40 pt-safe px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center shadow-lg shadow-red-600/30">
+                <i class="ph-bold ph-play text-white text-base"></i>
+            </div>
+            <span class="font-bold text-lg tracking-tight">ZenTube</span>
+        </div>
+        <div class="flex items-center space-x-2">
+            <!-- OAuth Quick Login / Profile Avatar Header Button -->
+            <button id="header-auth-btn" onclick="app.toggleAuth()" class="h-9 px-3 rounded-full bg-ios-card border border-ios-border/50 flex items-center space-x-1.5 text-xs font-semibold text-white active:scale-95 transition-transform" aria-label="Sign In">
+                <i class="ph-bold ph-user-circle text-lg text-ios-blue"></i>
+                <span id="header-auth-label">Sign In</span>
+            </button>
+            <button id="refresh-btn" onclick="app.refreshCurrentView()" class="w-9 h-9 rounded-full glass-card flex items-center justify-center text-ios-textSecondary active:scale-95 transition-transform" aria-label="Refresh Feed">
+                <i class="ph-bold ph-arrows-clockwise text-base"></i>
+            </button>
+            <button onclick="app.switchTab('settings')" class="w-9 h-9 rounded-full glass-card flex items-center justify-center text-ios-textSecondary active:scale-95 transition-transform" aria-label="Settings">
+                <i class="ph-bold ph-gear text-base"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Dynamic Content Container -->
+    <main id="app-content" class="flex-1 overflow-y-auto px-4 pt-4 pb-28 no-scrollbar">
+        <!-- Content dynamically injected here -->
+    </main>
+
+    <!-- Floating Video Player Sheet / Modal -->
+    <div id="player-modal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md hidden flex-col transition-opacity duration-300 opacity-0">
+        <!-- Close / Collapse Header -->
+        <div class="pt-safe px-4 py-3 flex items-center justify-between border-b border-ios-border/30 bg-ios-card/80">
+            <button onclick="app.closePlayer()" class="flex items-center space-x-1 text-ios-blue font-medium py-1 px-2 -ml-2 rounded-lg active:bg-ios-elevated/50">
+                <i class="ph-bold ph-caret-down text-xl"></i>
+                <span>Close</span>
+            </button>
+            <span id="player-channel-title" class="text-xs font-semibold text-ios-textSecondary truncate max-w-[200px]">Playing Video</span>
+            <button onclick="app.toggleBookmarkCurrent()" id="player-bookmark-btn" class="w-9 h-9 rounded-full flex items-center justify-center text-ios-textSecondary active:scale-95">
+                <i class="ph-bold ph-bookmark-simple text-xl"></i>
+            </button>
+        </div>
+
+        <!-- Player Container -->
+        <div class="w-full bg-black shadow-2xl">
+            <div class="aspect-video-container">
+                <div id="yt-player-placeholder" class="w-full h-full flex items-center justify-center bg-zinc-900 text-zinc-500 text-sm">
+                    Loading YouTube Player...
+                </div>
+            </div>
+        </div>
+
+        <!-- Video Details Section -->
+        <div class="flex-1 overflow-y-auto p-5 space-y-4">
+            <div>
+                <h1 id="player-video-title" class="text-lg font-bold leading-snug text-white">Video Title Loading...</h1>
+                <p id="player-video-meta" class="text-xs text-ios-textSecondary mt-1">Channel Name • Published Date</p>
+            </div>
+
+            <!-- Action Toolbar -->
+            <div class="flex items-center justify-around py-3 border-y border-ios-border/40">
+                <button onclick="app.openExternalYouTube()" class="flex flex-col items-center space-y-1 text-xs text-ios-textSecondary active:text-white">
+                    <div class="w-10 h-10 rounded-full bg-ios-elevated flex items-center justify-center">
+                        <i class="ph-bold ph-arrow-square-out text-lg"></i>
+                    </div>
+                    <span>Open in YT</span>
+                </button>
+                <button onclick="app.copyVideoLink()" class="flex flex-col items-center space-y-1 text-xs text-ios-textSecondary active:text-white">
+                    <div class="w-10 h-10 rounded-full bg-ios-elevated flex items-center justify-center">
+                        <i class="ph-bold ph-link text-lg"></i>
+                    </div>
+                    <span>Copy Link</span>
+                </button>
+                <button onclick="app.shareVideo()" class="flex flex-col items-center space-y-1 text-xs text-ios-textSecondary active:text-white">
+                    <div class="w-10 h-10 rounded-full bg-ios-elevated flex items-center justify-center">
+                        <i class="ph-bold ph-share-network text-lg"></i>
+                    </div>
+                    <span>Share</span>
+                </button>
+            </div>
+
+            <!-- Video Description Box -->
+            <div class="bg-ios-card/60 p-4 rounded-2xl border border-ios-border/30">
+                <h2 class="text-xs font-semibold text-ios-textSecondary uppercase tracking-wider mb-2">Description</h2>
+                <p id="player-video-description" class="text-xs text-zinc-300 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+                    No description available.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed top-12 left-1/2 -translate-x-1/2 z-50 bg-ios-elevated/90 border border-ios-border/60 text-white text-xs font-medium px-4 py-2.5 rounded-full shadow-2xl opacity-0 transition-all duration-300 pointer-events-none flex items-center space-x-2">
+        <i id="toast-icon" class="ph-bold ph-check-circle text-ios-accent"></i>
+        <span id="toast-msg">Notification Message</span>
+    </div>
+
+    <!-- iOS Bottom Navigation Bar -->
+    <nav class="fixed bottom-0 left-0 right-0 z-40 glass-nav border-t border-ios-border/40 pb-safe">
+        <div class="flex items-center justify-around h-14 px-2">
+            <button onclick="app.switchTab('feed')" id="tab-feed" class="flex-1 flex flex-col items-center justify-center h-full text-ios-blue transition-colors">
+                <i class="ph-fill ph-house text-2xl"></i>
+                <span class="text-[10px] font-medium mt-0.5">Feed</span>
+            </button>
+            <button onclick="app.switchTab('search')" id="tab-search" class="flex-1 flex flex-col items-center justify-center h-full text-ios-textSecondary transition-colors">
+                <i class="ph-bold ph-magnifying-glass text-2xl"></i>
+                <span class="text-[10px] font-medium mt-0.5">Search</span>
+            </button>
+            <button onclick="app.switchTab('channels')" id="tab-channels" class="flex-1 flex flex-col items-center justify-center h-full text-ios-textSecondary transition-colors">
+                <i class="ph-bold ph-users-three text-2xl"></i>
+                <span class="text-[10px] font-medium mt-0.5">Channels</span>
+            </button>
+            <button onclick="app.switchTab('saved')" id="tab-saved" class="flex-1 flex flex-col items-center justify-center h-full text-ios-textSecondary transition-colors">
+                <i class="ph-bold ph-bookmark-simple text-2xl"></i>
+                <span class="text-[10px] font-medium mt-0.5">Saved</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- YouTube IFrame API Script -->
+    <script src="https://www.youtube.com/iframe_api"></script>
+
+    <!-- Main JavaScript Logic -->
+    <script>
+        // Store default sample channels (Tech & Science channels for fallback/demo)
+        const DEFAULT_CHANNELS = [
+            { id: 'UCsXVk37bltHxD1rDPwtNM8Q', title: 'Kurzgesagt – In a Nutshell', customUrl: '@kurzgesagt' },
+            { id: 'UCBJycsmduvYEL83R_U4JraQ', title: 'MKBHD', customUrl: '@mkbhd' },
+            { id: 'UC3LqW4ijqsou05KA6OrL0Wg', title: 'Veritasium', customUrl: '@veritasium' }
+        ];
+
+        // Mock videos to guarantee offline / fallback functionality
+        const MOCK_VIDEOS = [
+            {
+                id: 'dQw4w9WgXcQ',
+                title: 'Rick Astley - Never Gonna Give You Up (Official Music Video)',
+                channelTitle: 'Rick Astley',
+                channelId: 'UCuAXFkgHJwGa7dQ30H035WA',
+                publishedAt: '2009-10-25T06:57:33Z',
+                thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+                description: 'The official video for "Never Gonna Give You Up" by Rick Astley.'
+            },
+            {
+                id: '7Pq-S557XQU',
+                title: 'What Happens If We Bomb a City with a Nuclear Bomb?',
+                channelTitle: 'Kurzgesagt – In a Nutshell',
+                channelId: 'UCsXVk37bltHxD1rDPwtNM8Q',
+                publishedAt: '2023-11-12T14:00:00Z',
+                thumbnail: 'https://i.ytimg.com/vi/7Pq-S557XQU/hqdefault.jpg',
+                description: 'What happens when a modern nuclear weapon detonates in a major city?'
+            },
+            {
+                id: 'L_LUpnjgPso',
+                title: 'Apple Vision Pro Unboxing & First Look!',
+                channelTitle: 'MKBHD',
+                channelId: 'UCBJycsmduvYEL83R_U4JraQ',
+                publishedAt: '2024-01-30T16:00:00Z',
+                thumbnail: 'https://i.ytimg.com/vi/L_LUpnjgPso/hqdefault.jpg',
+                description: 'Here is our first hands-on experience with Apple Vision Pro spatial computer.'
+            },
+            {
+                id: '4I33XTh_E40',
+                title: 'An Optical Illusion That Tricked Everyone',
+                channelTitle: 'Veritasium',
+                channelId: 'UC3LqW4ijqsou05KA6OrL0Wg',
+                publishedAt: '2023-12-05T15:30:00Z',
+                thumbnail: 'https://i.ytimg.com/vi/4I33XTh_E40/hqdefault.jpg',
+                description: 'Exploring the science of visual perception and light refraction.'
+            }
+        ];
+
+        class ZenTubeApp {
+            constructor() {
+                this.activeTab = 'feed';
+                this.apiKey = localStorage.getItem('zentube_api_key') || '';
+                this.clientId = localStorage.getItem('zentube_client_id') || '';
+                this.accessToken = localStorage.getItem('zentube_access_token') || '';
+                this.userProfile = JSON.parse(localStorage.getItem('zentube_user_profile')) || null;
+                
+                this.channels = JSON.parse(localStorage.getItem('zentube_channels')) || DEFAULT_CHANNELS;
+                this.savedVideoIds = JSON.parse(localStorage.getItem('zentube_saved')) || [];
+                this.videos = [];
+                this.currentVideo = null;
+                this.tokenClient = null;
+
+                this.init();
+            }
+
+            init() {
+                this.initGISClient();
+                this.updateAuthHeaderUI();
+                this.switchTab('feed');
+            }
+
+            // Initialize Google Identity Services OAuth Token Client
+            initGISClient() {
+                if (window.google && window.google.accounts && this.clientId) {
+                    try {
+                        this.tokenClient = google.accounts.oauth2.initTokenClient({
+                            client_id: this.clientId,
+                            scope: 'https://www.googleapis.com/auth/youtube.readonly',
+                            callback: (response) => {
+                                if (response.access_token) {
+                                    this.accessToken = response.access_token;
+                                    localStorage.setItem('zentube_access_token', this.accessToken);
+                                    this.showToast('Successfully signed in with Google');
+                                    this.fetchAndSyncUserSubscriptions();
+                                } else if (response.error) {
+                                    console.error('OAuth Error:', response);
+                                    this.showToast('Sign in failed or cancelled');
+                                }
+                            }
+                        });
+                    } catch (e) {
+                        console.error('Failed to initialize GIS client:', e);
+                    }
+                }
+            }
+
+            toggleAuth() {
+                if (this.accessToken) {
+                    this.signOut();
+                } else {
+                    this.signInWithGoogle();
+                }
+            }
+
+            signInWithGoogle() {
+                if (!this.clientId) {
+                    this.switchTab('settings');
+                    this.showToast('Please enter your Google OAuth Client ID in Settings first');
+                    return;
+                }
+
+                if (!this.tokenClient) {
+                    this.initGISClient();
+                }
+
+                if (this.tokenClient) {
+                    this.tokenClient.requestAccessToken({ prompt: 'consent' });
+                } else {
+                    this.showToast('Google Identity Services client loading... try again in a moment');
+                }
+            }
+
+            signOut() {
+                if (this.accessToken && window.google && window.google.accounts) {
+                    google.accounts.oauth2.revoke(this.accessToken, () => {
+                        console.log('Token revoked');
+                    });
+                }
+                this.accessToken = '';
+                this.userProfile = null;
+                this.channels = DEFAULT_CHANNELS;
+                localStorage.removeItem('zentube_access_token');
+                localStorage.removeItem('zentube_user_profile');
+                localStorage.setItem('zentube_channels', JSON.stringify(DEFAULT_CHANNELS));
+                
+                this.updateAuthHeaderUI();
+                this.showToast('Signed out');
+                this.switchTab('feed');
+            }
+
+            updateAuthHeaderUI() {
+                const label = document.getElementById('header-auth-label');
+                const btn = document.getElementById('header-auth-btn');
+                if (label && btn) {
+                    if (this.accessToken) {
+                        label.innerText = 'Sign Out';
+                        btn.className = 'h-9 px-3 rounded-full bg-ios-blue/20 border border-ios-blue/40 flex items-center space-x-1.5 text-xs font-semibold text-ios-blue active:scale-95 transition-transform';
+                    } else {
+                        label.innerText = 'Sign In';
+                        btn.className = 'h-9 px-3 rounded-full bg-ios-card border border-ios-border/50 flex items-center space-x-1.5 text-xs font-semibold text-white active:scale-95 transition-transform';
+                    }
+                }
+            }
+
+            // Fetch User Subscriptions via YouTube Data API v3 mine=true
+            async fetchAndSyncUserSubscriptions() {
+                if (!this.accessToken) return;
+
+                this.showToast('Fetching your YouTube subscriptions...');
+                try {
+                    const url = `https://www.googleapis.com/youtube/v3/subscriptions?mine=true&part=snippet&maxResults=50`;
+                    const res = await fetch(url, {
+                        headers: {
+                            'Authorization': `Bearer ${this.accessToken}`,
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    if (res.status === 401) {
+                        // Access Token expired
+                        this.showToast('Session expired. Please sign in again.');
+                        this.signOut();
+                        return;
+                    }
+
+                    if (!res.ok) throw new Error('Subscriptions API request failed');
+
+                    const data = await res.json();
+                    if (data.items && data.items.length > 0) {
+                        this.channels = data.items.map(item => ({
+                            id: item.snippet.resourceId.channelId,
+                            title: item.snippet.title,
+                            customUrl: item.snippet.channelId ? `@${item.snippet.title.replace(/\s+/g, '').toLowerCase()}` : ''
+                        }));
+
+                        localStorage.setItem('zentube_channels', JSON.stringify(this.channels));
+                        this.updateAuthHeaderUI();
+                        this.showToast(`Loaded ${this.channels.length} subscriptions`);
+                        this.switchTab('feed');
+                    } else {
+                        this.showToast('No subscriptions found on account');
+                    }
+                } catch (err) {
+                    console.error('Error fetching subscriptions:', err);
+                    this.showToast('Error fetching subscriptions');
+                }
+            }
+
+            // Tab Navigation Controller
+            switchTab(tabName) {
+                this.activeTab = tabName;
+                
+                // Update Bottom Navigation Icon States
+                const tabs = ['feed', 'search', 'channels', 'saved'];
+                tabs.forEach(t => {
+                    const btn = document.getElementById(`tab-${t}`);
+                    if (btn) {
+                        const icon = btn.querySelector('i');
+                        if (t === tabName) {
+                            btn.className = 'flex-1 flex flex-col items-center justify-center h-full text-ios-blue transition-colors';
+                            if (icon) icon.className = icon.className.replace('ph-bold', 'ph-fill');
+                        } else {
+                            btn.className = 'flex-1 flex flex-col items-center justify-center h-full text-ios-textSecondary transition-colors';
+                            if (icon) icon.className = icon.className.replace('ph-fill', 'ph-bold');
+                        }
+                    }
+                });
+
+                // Render Content View
+                const content = document.getElementById('app-content');
+                content.scrollTop = 0;
+
+                switch (tabName) {
+                    case 'feed':
+                        this.renderFeedView();
+                        break;
+                    case 'search':
+                        this.renderSearchView();
+                        break;
+                    case 'channels':
+                        this.renderChannelsView();
+                        break;
+                    case 'saved':
+                        this.renderSavedView();
+                        break;
+                    case 'settings':
+                        this.renderSettingsView();
+                        break;
+                }
+            }
+
+            refreshCurrentView() {
+                if (this.accessToken) {
+                    this.fetchAndSyncUserSubscriptions();
+                } else {
+                    this.showToast('Refreshing feed...');
+                    this.switchTab(this.activeTab);
+                }
+            }
+
+            // --- API & DATA FETCHING ---
+            async fetchFeed() {
+                // If authenticated with OAuth token, fetch via auth header or fallback to API key / demo
+                if (!this.apiKey && !this.accessToken) {
+                    return MOCK_VIDEOS;
+                }
+
+                try {
+                    let allVideos = [];
+                    // Fetch latest videos from top subscribed channels
+                    const activeChannels = this.channels.slice(0, 8);
+                    
+                    for (let ch of activeChannels) {
+                        let url = `https://www.googleapis.com/youtube/v3/search?channelId=${ch.id}&part=snippet,id&order=date&maxResults=3&type=video`;
+                        let headers = {};
+
+                        if (this.accessToken) {
+                            headers['Authorization'] = `Bearer ${this.accessToken}`;
+                        } else {
+                            url += `&key=${this.apiKey}`;
+                        }
+
+                        const res = await fetch(url, { headers });
+                        if (!res.ok) continue;
+                        const data = await res.json();
+
+                        if (data.items) {
+                            const mapped = data.items.map(item => ({
+                                id: item.id.videoId,
+                                title: item.snippet.title,
+                                channelTitle: item.snippet.channelTitle,
+                                channelId: item.snippet.channelId,
+                                publishedAt: item.snippet.publishedAt,
+                                thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.medium?.url,
+                                description: item.snippet.description
+                            }));
+                            allVideos = [...allVideos, ...mapped];
+                        }
+                    }
+
+                    // Sort chronologically
+                    allVideos.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+                    return allVideos.length > 0 ? allVideos : MOCK_VIDEOS;
+                } catch (err) {
+                    console.warn('API Fetch error, falling back to demo items:', err);
+                    return MOCK_VIDEOS;
+                }
+            }
+
+            async searchYouTube(query) {
+                if (!query.trim()) return [];
+
+                if (!this.apiKey && !this.accessToken) {
+                    return MOCK_VIDEOS.filter(v => 
+                        v.title.toLowerCase().includes(query.toLowerCase()) || 
+                        v.channelTitle.toLowerCase().includes(query.toLowerCase())
+                    );
+                }
+
+                try {
+                    let url = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=15`;
+                    let headers = {};
+
+                    if (this.accessToken) {
+                        headers['Authorization'] = `Bearer ${this.accessToken}`;
+                    } else {
+                        url += `&key=${this.apiKey}`;
+                    }
+
+                    const res = await fetch(url, { headers });
+                    if (!res.ok) throw new Error('Search failed');
+                    const data = await res.json();
+
+                    return data.items.map(item => ({
+                        id: item.id.videoId,
+                        title: item.snippet.title,
+                        channelTitle: item.snippet.channelTitle,
+                        channelId: item.snippet.channelId,
+                        publishedAt: item.snippet.publishedAt,
+                        thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.medium?.url,
+                        description: item.snippet.description
+                    }));
+                } catch (e) {
+                    this.showToast('Search error. Showing demo results.');
+                    return MOCK_VIDEOS;
+                }
+            }
+
+            // --- VIEW RENDERERS ---
+
+            async renderFeedView() {
+                const container = document.getElementById('app-content');
+                const statusBadge = this.accessToken ? 'YouTube Account Synced' : (this.apiKey ? 'API Key Mode' : 'Demo Mode');
+                
+                container.innerHTML = `
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-2xl font-bold tracking-tight">Subscriptions</h2>
+                        <span class="text-[10px] text-ios-textSecondary bg-ios-card px-2.5 py-1 rounded-full border border-ios-border/40 font-medium flex items-center space-x-1">
+                            <span class="w-1.5 h-1.5 rounded-full ${this.accessToken ? 'bg-ios-accent' : 'bg-amber-400'}"></span>
+                            <span>${statusBadge}</span>
+                        </span>
+                    </div>
+                    ${!this.accessToken ? `
+                        <div class="bg-gradient-to-r from-ios-card to-ios-elevated border border-ios-border/60 p-3.5 rounded-2xl mb-4 flex items-center justify-between shadow-sm">
+                            <div class="space-y-0.5">
+                                <h3 class="text-xs font-bold text-white">Connect YouTube Account</h3>
+                                <p class="text-[11px] text-ios-textSecondary">Sync your live subscriptions automatically.</p>
+                            </div>
+                            <button onclick="app.signInWithGoogle()" class="bg-ios-blue text-white text-xs font-semibold px-3 py-1.5 rounded-xl active:scale-95 transition-transform flex items-center space-x-1">
+                                <i class="ph-bold ph-google-logo"></i>
+                                <span>Sign In</span>
+                            </button>
+                        </div>
+                    ` : ''}
+                    <div id="feed-loader" class="space-y-4">
+                        ${this.renderSkeletonCard()}
+                        ${this.renderSkeletonCard()}
+                    </div>
+                    <div id="feed-list" class="space-y-4 hidden"></div>
+                `;
+
+                const vids = await this.fetchFeed();
+                this.videos = vids;
+
+                const listEl = document.getElementById('feed-list');
+                const loaderEl = document.getElementById('feed-loader');
+
+                if (listEl && loaderEl) {
+                    loaderEl.classList.add('hidden');
+                    listEl.classList.remove('hidden');
+
+                    if (vids.length === 0) {
+                        listEl.innerHTML = `<p class="text-center text-ios-textSecondary py-10">No videos found. Try refreshing or signing in.</p>`;
+                        return;
+                    }
+
+                    listEl.innerHTML = vids.map(v => this.createVideoCardHTML(v)).join('');
+                }
+            }
+
+            renderSearchView() {
+                const container = document.getElementById('app-content');
+                container.innerHTML = `
+                    <div class="space-y-4 animate-fade-in">
+                        <h2 class="text-2xl font-bold tracking-tight">Search</h2>
+                        <form onsubmit="app.handleSearch(event)" class="relative">
+                            <i class="ph-bold ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-ios-textSecondary text-lg"></i>
+                            <input type="text" id="search-input" placeholder="Search videos or topics..." 
+                                class="w-full bg-ios-card border border-ios-border/50 text-white placeholder-ios-textSecondary rounded-xl pl-10 pr-10 py-3 text-sm focus:outline-none focus:border-ios-blue transition-colors" />
+                            <button type="submit" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-ios-blue px-2 py-1">
+                                Go
+                            </button>
+                        </form>
+
+                        <div id="search-results" class="space-y-4 pt-2">
+                            <div class="text-center py-12 text-ios-textSecondary">
+                                <i class="ph-bold ph-film-strip text-4xl mb-2 text-zinc-700"></i>
+                                <p class="text-xs">Search clean YouTube videos without algorithmic feed clutter.</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            async handleSearch(e) {
+                e.preventDefault();
+                const query = document.getElementById('search-input')?.value;
+                if (!query) return;
+
+                const resultsContainer = document.getElementById('search-results');
+                if (resultsContainer) {
+                    resultsContainer.innerHTML = `
+                        <div class="space-y-4">
+                            ${this.renderSkeletonCard()}
+                            ${this.renderSkeletonCard()}
+                        </div>
+                    `;
+
+                    const results = await this.searchYouTube(query);
+                    if (results.length === 0) {
+                        resultsContainer.innerHTML = `<p class="text-center text-ios-textSecondary py-8">No results found for "${query}"</p>`;
+                        return;
+                    }
+
+                    this.videos = [...this.videos, ...results];
+                    resultsContainer.innerHTML = results.map(v => this.createVideoCardHTML(v)).join('');
+                }
+            }
+
+            renderChannelsView() {
+                const container = document.getElementById('app-content');
+                container.innerHTML = `
+                    <div class="space-y-5 animate-fade-in">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h2 class="text-2xl font-bold tracking-tight">Subscribed Channels</h2>
+                                <p class="text-xs text-ios-textSecondary mt-0.5">${this.channels.length} channels loaded</p>
+                            </div>
+                            ${this.accessToken ? `
+                                <button onclick="app.fetchAndSyncUserSubscriptions()" class="text-xs font-semibold text-ios-blue bg-ios-blue/10 px-3 py-1.5 rounded-full border border-ios-blue/20 flex items-center space-x-1">
+                                    <i class="ph-bold ph-arrows-clockwise"></i>
+                                    <span>Sync API</span>
+                                </button>
+                            ` : `
+                                <button onclick="app.promptAddChannel()" class="text-xs font-semibold text-ios-blue bg-ios-blue/10 px-3 py-1.5 rounded-full border border-ios-blue/20 flex items-center space-x-1">
+                                    <i class="ph-bold ph-plus"></i>
+                                    <span>Add ID</span>
+                                </button>
+                            `}
+                        </div>
+
+                        <div class="space-y-2.5">
+                            ${this.channels.map(ch => `
+                                <div class="bg-ios-card/80 border border-ios-border/40 p-3.5 rounded-2xl flex items-center justify-between">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="w-10 h-10 rounded-full bg-gradient-to-br from-zinc-700 to-zinc-900 flex items-center justify-center font-bold text-sm text-zinc-300">
+                                            ${ch.title.charAt(0)}
+                                        </div>
+                                        <div>
+                                            <h3 class="text-sm font-semibold text-white leading-tight">${ch.title}</h3>
+                                            <p class="text-xs text-ios-textSecondary mt-0.5">${ch.customUrl || 'ID: ' + ch.id.substring(0, 10) + '...'}</p>
+                                        </div>
+                                    </div>
+                                    <button onclick="app.removeChannel('${ch.id}')" class="text-ios-coral/80 active:text-ios-coral p-2 text-lg">
+                                        <i class="ph-bold ph-trash"></i>
+                                    </button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderSavedView() {
+                const container = document.getElementById('app-content');
+                const savedVideos = this.videos.filter(v => this.savedVideoIds.includes(v.id));
+
+                container.innerHTML = `
+                    <div class="space-y-4 animate-fade-in">
+                        <h2 class="text-2xl font-bold tracking-tight">Bookmarks</h2>
+                        ${savedVideos.length === 0 ? `
+                            <div class="text-center py-16 text-ios-textSecondary">
+                                <i class="ph-bold ph-bookmark-simple text-4xl mb-2 text-zinc-700"></i>
+                                <p class="text-xs">No bookmarked videos yet.</p>
+                                <p class="text-[11px] text-zinc-600 mt-1">Tap the bookmark icon inside the player to save videos for later.</p>
+                            </div>
+                        ` : `
+                            <div class="space-y-4">
+                                ${savedVideos.map(v => this.createVideoCardHTML(v)).join('')}
+                            </div>
+                        `}
+                    </div>
+                `;
+            }
+
+            renderSettingsView() {
+                const container = document.getElementById('app-content');
+                container.innerHTML = `
+                    <div class="space-y-6 animate-fade-in">
+                        <h2 class="text-2xl font-bold tracking-tight">Settings</h2>
+
+                        <!-- Google Account OAuth Section -->
+                        <div class="bg-ios-card/80 border border-ios-border/40 p-4 rounded-2xl space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-2">
+                                    <i class="ph-bold ph-google-logo text-ios-blue text-lg"></i>
+                                    <h3 class="text-sm font-semibold text-white">Google OAuth Account</h3>
+                                </div>
+                                <span class="text-[10px] px-2 py-0.5 rounded-full ${this.accessToken ? 'bg-ios-accent/20 text-ios-accent border border-ios-accent/30' : 'bg-zinc-800 text-zinc-400'}">
+                                    ${this.accessToken ? 'Connected' : 'Disconnected'}
+                                </span>
+                            </div>
+
+                            <p class="text-xs text-ios-textSecondary leading-relaxed">
+                                Enter your Google OAuth Client ID to log in with your YouTube account and sync your real subscriptions list.
+                            </p>
+
+                            <input type="text" id="client-id-input" value="${this.clientId}" placeholder="your-client-id.apps.googleusercontent.com" 
+                                class="w-full bg-ios-bg border border-ios-border/60 text-white placeholder-zinc-600 text-xs rounded-xl px-3 py-2.5 font-mono focus:outline-none focus:border-ios-blue" />
+
+                            <div class="pt-1 flex space-x-2">
+                                <button onclick="app.saveClientId()" class="flex-1 bg-ios-card border border-ios-border/60 text-white font-medium text-xs py-2.5 rounded-xl active:opacity-80 transition-opacity">
+                                    Save Client ID
+                                </button>
+                                ${this.accessToken ? `
+                                    <button onclick="app.signOut()" class="flex-1 bg-ios-coral/20 border border-ios-coral/40 text-ios-coral font-medium text-xs py-2.5 rounded-xl active:opacity-80 transition-opacity">
+                                        Sign Out
+                                    </button>
+                                ` : `
+                                    <button onclick="app.signInWithGoogle()" class="flex-1 bg-ios-blue text-white font-medium text-xs py-2.5 rounded-xl active:opacity-80 transition-opacity">
+                                        Sign In with Google
+                                    </button>
+                                `}
+                            </div>
+                        </div>
+
+                        <!-- Developer API Key Fallback Section -->
+                        <div class="bg-ios-card/80 border border-ios-border/40 p-4 rounded-2xl space-y-3">
+                            <div class="flex items-center space-x-2">
+                                <i class="ph-bold ph-key text-ios-blue text-lg"></i>
+                                <h3 class="text-sm font-semibold text-white">Fallback Developer API Key</h3>
+                            </div>
+                            <p class="text-xs text-ios-textSecondary leading-relaxed">
+                                Optional: YouTube Data v3 API Key for unauthenticated public searches.
+                            </p>
+                            <input type="password" id="api-key-input" value="${this.apiKey}" placeholder="AIzaSy..." 
+                                class="w-full bg-ios-bg border border-ios-border/60 text-white placeholder-zinc-600 text-xs rounded-xl px-3 py-2.5 font-mono focus:outline-none focus:border-ios-blue" />
+                            <button onclick="app.saveApiKey()" class="w-full bg-ios-card border border-ios-border/60 text-white font-medium text-xs py-2.5 rounded-xl active:opacity-80 transition-opacity">
+                                Save API Key
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // --- SAVE SETTINGS ---
+
+            saveClientId() {
+                const val = document.getElementById('client-id-input')?.value.trim();
+                this.clientId = val;
+                localStorage.setItem('zentube_client_id', val);
+                this.initGISClient();
+                this.showToast(val ? 'OAuth Client ID saved' : 'Client ID cleared');
+            }
+
+            saveApiKey() {
+                const val = document.getElementById('api-key-input')?.value.trim();
+                this.apiKey = val;
+                localStorage.setItem('zentube_api_key', val);
+                this.showToast(val ? 'API key saved' : 'Key removed.');
+            }
+
+            // --- TEMPLATE HELPERS ---
+
+            createVideoCardHTML(video) {
+                const isSaved = this.savedVideoIds.includes(video.id);
+                const timeAgo = this.formatDate(video.publishedAt);
+
+                return `
+                    <div class="glass-card border border-ios-border/40 rounded-2xl overflow-hidden shadow-sm active:scale-[0.98] transition-transform duration-150" onclick="app.openPlayer('${video.id}')">
+                        <div class="relative w-full aspect-video bg-zinc-900">
+                            <img src="${video.thumbnail}" alt="${video.title}" class="w-full h-full object-cover" loading="lazy" onerror="this.src='https://placehold.co/600x337/1c1c1e/ffffff?text=Video+Thumbnail'" />
+                            <div class="absolute bottom-2 right-2 bg-black/80 backdrop-blur-sm text-white text-[10px] font-semibold px-2 py-0.5 rounded-md">
+                                Watch
+                            </div>
+                        </div>
+                        
+                        <div class="p-3.5 flex items-start justify-between space-x-2">
+                            <div class="space-y-1">
+                                <h3 class="text-xs font-bold text-white line-clamp-2 leading-snug">${video.title}</h3>
+                                <div class="flex items-center space-x-1.5 text-[11px] text-ios-textSecondary">
+                                    <span class="font-medium text-zinc-300 truncate max-w-[150px]">${video.channelTitle}</span>
+                                    <span>•</span>
+                                    <span>${timeAgo}</span>
+                                </div>
+                            </div>
+                            <button onclick="event.stopPropagation(); app.toggleBookmark('${video.id}')" class="text-ios-textSecondary p-1 active:scale-125 transition-transform">
+                                <i class="ph-${isSaved ? 'fill' : 'bold'} ph-bookmark-simple text-lg ${isSaved ? 'text-ios-blue' : ''}"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderSkeletonCard() {
+                return `
+                    <div class="bg-ios-card/50 border border-ios-border/20 rounded-2xl overflow-hidden animate-pulse">
+                        <div class="w-full aspect-video bg-zinc-800"></div>
+                        <div class="p-3.5 space-y-2">
+                            <div class="h-3.5 bg-zinc-800 rounded w-5/6"></div>
+                            <div class="h-3 bg-zinc-800 rounded w-1/2"></div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // --- PLAYER CONTROLLER ---
+
+            openPlayer(videoId) {
+                const video = this.videos.find(v => v.id === videoId) || MOCK_VIDEOS.find(v => v.id === videoId);
+                if (!video) return;
+
+                this.currentVideo = video;
+
+                document.getElementById('player-video-title').innerText = video.title;
+                document.getElementById('player-channel-title').innerText = video.channelTitle;
+                document.getElementById('player-video-meta').innerText = `${video.channelTitle} • ${this.formatDate(video.publishedAt)}`;
+                document.getElementById('player-video-description').innerText = video.description || 'No description provided.';
+                
+                this.updatePlayerBookmarkBtn();
+
+                const modal = document.getElementById('player-modal');
+                modal.classList.remove('hidden');
+                setTimeout(() => {
+                    modal.classList.remove('opacity-0');
+                }, 10);
+
+                const placeholder = document.getElementById('yt-player-placeholder');
+                placeholder.innerHTML = `<iframe id="yt-iframe" src="https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&enablejsapi=1&modestbranding=1&rel=0" allow="autoplay; encrypted-media" allowfullscreen class="w-full h-full rounded-none"></iframe>`;
+            }
+
+            closePlayer() {
+                const modal = document.getElementById('player-modal');
+                modal.classList.add('opacity-0');
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    document.getElementById('yt-player-placeholder').innerHTML = '';
+                    this.currentVideo = null;
+                }, 300);
+            }
+
+            openExternalYouTube() {
+                if (this.currentVideo) {
+                    window.open(`https://www.youtube.com/watch?v=${this.currentVideo.id}`, '_blank');
+                }
+            }
+
+            copyVideoLink() {
+                if (this.currentVideo) {
+                    const link = `https://youtu.be/${this.currentVideo.id}`;
+                    const dummy = document.createElement('textarea');
+                    document.body.appendChild(dummy);
+                    dummy.value = link;
+                    dummy.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(dummy);
+                    this.showToast('Link copied to clipboard');
+                }
+            }
+
+            shareVideo() {
+                if (this.currentVideo && navigator.share) {
+                    navigator.share({
+                        title: this.currentVideo.title,
+                        url: `https://youtu.be/${this.currentVideo.id}`
+                    }).catch(() => {});
+                } else {
+                    this.copyVideoLink();
+                }
+            }
+
+            toggleBookmark(videoId) {
+                const index = this.savedVideoIds.indexOf(videoId);
+                if (index > -1) {
+                    this.savedVideoIds.splice(index, 1);
+                    this.showToast('Removed from Bookmarks');
+                } else {
+                    this.savedVideoIds.push(videoId);
+                    this.showToast('Saved to Bookmarks');
+                }
+                localStorage.setItem('zentube_saved', JSON.stringify(this.savedVideoIds));
+
+                if (this.activeTab === 'saved') this.renderSavedView();
+                else if (this.activeTab === 'feed') this.renderFeedView();
+            }
+
+            toggleBookmarkCurrent() {
+                if (this.currentVideo) {
+                    this.toggleBookmark(this.currentVideo.id);
+                    this.updatePlayerBookmarkBtn();
+                }
+            }
+
+            updatePlayerBookmarkBtn() {
+                const btn = document.getElementById('player-bookmark-btn');
+                if (btn && this.currentVideo) {
+                    const isSaved = this.savedVideoIds.includes(this.currentVideo.id);
+                    btn.innerHTML = `<i class="ph-${isSaved ? 'fill' : 'bold'} ph-bookmark-simple text-xl ${isSaved ? 'text-ios-blue' : 'text-ios-textSecondary'}"></i>`;
+                }
+            }
+
+            promptAddChannel() {
+                const id = prompt("Enter YouTube Channel ID (e.g. UCsXVk37bltHxD1rDPwtNM8Q):");
+                if (id) {
+                    const name = prompt("Enter Channel Title:", "Custom Channel") || "Custom Channel";
+                    this.channels.push({ id: id.trim(), title: name });
+                    localStorage.setItem('zentube_channels', JSON.stringify(this.channels));
+                    this.renderChannelsView();
+                    this.showToast('Channel added');
+                }
+            }
+
+            removeChannel(id) {
+                this.channels = this.channels.filter(c => c.id !== id);
+                localStorage.setItem('zentube_channels', JSON.stringify(this.channels));
+                this.renderChannelsView();
+                this.showToast('Channel removed');
+            }
+
+            showToast(message) {
+                const toast = document.getElementById('toast');
+                const toastMsg = document.getElementById('toast-msg');
+                if (toast && toastMsg) {
+                    toastMsg.innerText = message;
+                    toast.classList.remove('opacity-0', 'pointer-events-none');
+                    toast.classList.add('opacity-100');
+                    setTimeout(() => {
+                        toast.classList.add('opacity-0', 'pointer-events-none');
+                        toast.classList.remove('opacity-100');
+                    }, 2200);
+                }
+            }
+
+            formatDate(isoString) {
+                if (!isoString) return '';
+                const date = new Date(isoString);
+                const now = new Date();
+                const diffSecs = Math.floor((now - date) / 1000);
+
+                if (diffSecs < 3600) return `${Math.floor(diffSecs / 60)}m ago`;
+                if (diffSecs < 86400) return `${Math.floor(diffSecs / 3600)}h ago`;
+                if (diffSecs < 2592000) return `${Math.floor(diffSecs / 86400)}d ago`;
+                return `${Math.floor(diffSecs / 2592000)}mo ago`;
+            }
+        }
+
+        // Initialize App on Window Load
+        let app;
+        window.addEventListener('DOMContentLoaded', () => {
+            app = new ZenTubeApp();
+        });
+    </script>
+</body>
+</html>
