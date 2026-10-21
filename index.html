@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>ZenTube - Minimalist YouTube</title>
+  <title>ZenTube - Minimalist YouTube with iOS PiP</title>
   
   <!-- iOS PWA Meta Tags -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -496,7 +496,7 @@
       <div class="section-title">Settings & Configuration</div>
       
       <div class="settings-card">
-        <label style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">Custom Stream Proxy URL (Pi / Invidious)</label>
+        <label style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">Custom Stream Proxy URL (Invidious API)</label>
         <input type="text" id="proxy-url-input" class="input-field" placeholder="e.g. https://your-tunnel.trycloudflare.com" />
         <button class="save-btn" onclick="saveProxyUrl()">Save Proxy URL</button>
       </div>
@@ -536,6 +536,11 @@
     <div class="player-header">
       <span class="video-title" id="player-title" style="font-size: 14px;">Playing Video</span>
       <div class="player-actions">
+        <!-- Native System PiP Button (For Proxy HTML5 Player) -->
+        <button class="icon-btn-circle" id="pip-btn" onclick="triggerSystemPip()" title="System Picture-in-Picture" style="display: none;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><rect x="11" y="9" width="9" height="6" rx="1" fill="currentColor"/></svg>
+        </button>
+        <!-- In-App Dock Button -->
         <button class="icon-btn-circle" onclick="toggleDockPlayer()" title="Dock Mini-Player">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
         </button>
@@ -544,13 +549,13 @@
     </div>
     <div class="player-container" id="player-container">
       <div id="youtube-player"></div>
-      <video id="proxy-video-player" controls playsinline style="display: none; width: 100%; height: 100%;"></video>
+      <video id="proxy-video-player" controls playsinline webkit-playsinline style="display: none; width: 100%; height: 100%;"></video>
     </div>
     <div class="player-details">
       <h2 id="modal-video-title" style="font-size: 18px; margin-bottom: 8px;"></h2>
       <p id="modal-channel-title" style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px;"></p>
       <div style="padding: 12px; background: var(--bg-surface); border-radius: 12px; border: 1px solid var(--border-color); font-size: 13px; color: var(--text-secondary); line-height: 1.4;" id="modal-description">
-        Minimalist video player active.
+        System Picture-in-Picture mode supported when playing via Proxy stream.
       </div>
     </div>
   </div>
@@ -575,7 +580,7 @@
     </div>
   </nav>
 
-  <!-- External Libraries Loaded Safely at Bottom of Body -->
+  <!-- External Libraries Loaded Safely -->
   <script src="https://accounts.google.com/gsi/client" async defer onload="onGisLibraryLoad()"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
 
@@ -907,6 +912,8 @@
     async function openPlayer(videoId, title, channel) {
       currentVideoId = videoId;
       const modal = document.getElementById('player-modal');
+      const pipBtn = document.getElementById('pip-btn');
+      
       modal.classList.remove('docked');
       modal.classList.add('active');
 
@@ -921,23 +928,41 @@
       if (proxyUrl) {
         ytContainer.style.display = 'none';
         proxyVideo.style.display = 'block';
-        
+
+        // Check for PiP Support on iOS WebKit / Standard Browsers
+        if (proxyVideo.requestPictureInPicture || proxyVideo.webkitSetPresentationMode) {
+          pipBtn.style.display = 'flex';
+        } else {
+          pipBtn.style.display = 'none';
+        }
+
         try {
           const res = await fetch(`${proxyUrl}/api/v1/videos/${videoId}`);
           const data = await res.json();
+          let streamUrl = '';
+
           if (data.formatStreams && data.formatStreams.length > 0) {
-            proxyVideo.src = data.formatStreams[0].url;
+            streamUrl = data.formatStreams[0].url;
+          } else if (data.adaptiveFormats && data.adaptiveFormats.length > 0) {
+            const videoOnly = data.adaptiveFormats.find(f => f.container === 'mp4' && f.type.includes('video'));
+            if (videoOnly) streamUrl = videoOnly.url;
+          }
+
+          if (streamUrl) {
+            proxyVideo.src = streamUrl;
             proxyVideo.currentTime = savedTime;
-            proxyVideo.play();
+            proxyVideo.play().catch(e => console.warn('Auto-play blocked:', e));
             startProxyProgressTracking(proxyVideo);
           } else {
-            throw new Error('No format streams found');
+            throw new Error('No compatible video stream found');
           }
         } catch (err) {
-          console.warn('Proxy stream failed, falling back to official iframe player', err);
+          console.warn('Proxy stream failed, falling back to official YouTube iframe', err);
+          pipBtn.style.display = 'none';
           loadIframePlayer(videoId, savedTime);
         }
       } else {
+        pipBtn.style.display = 'none';
         loadIframePlayer(videoId, savedTime);
       }
     }
@@ -968,6 +993,26 @@
       }
 
       startIframeProgressTracking();
+    }
+
+    function triggerSystemPip() {
+      const proxyVideo = document.getElementById('proxy-video-player');
+      if (!proxyVideo) return;
+
+      try {
+        if (document.pictureInPictureElement) {
+          document.exitPictureInPicture();
+        } else if (proxyVideo.requestPictureInPicture) {
+          proxyVideo.requestPictureInPicture();
+        } else if (proxyVideo.webkitSupportsPresentationMode && typeof proxyVideo.webkitSetPresentationMode === 'function') {
+          // iOS Safari WebKit PiP Support
+          proxyVideo.webkitSetPresentationMode(
+            proxyVideo.webkitPresentationMode === 'picture-in-picture' ? 'inline' : 'picture-in-picture'
+          );
+        }
+      } catch (err) {
+        console.error('Picture-in-Picture trigger error:', err);
+      }
     }
 
     function onPlayerStateChange(event) {
