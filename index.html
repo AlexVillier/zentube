@@ -564,8 +564,8 @@
     </div>
     <div class="player-container" id="player-container">
       <div id="youtube-player"></div>
-      <!-- Native HTML5 Video Element explicitly configured for iOS Safari WebKit PiP -->
-      <video id="proxy-video-player" controls playsinline webkit-playsinline x-webkit-airplay="allow" disablepictureinpicture="false" style="display: none; width: 100%; height: 100%;"></video>
+      <!-- Native HTML5 Video Element with explicit crossorigin="anonymous" to untaint WebKit video pipeline for iOS PiP -->
+      <video id="proxy-video-player" controls playsinline webkit-playsinline x-webkit-airplay="allow" crossorigin="anonymous" disablepictureinpicture="false" style="display: none; width: 100%; height: 100%;"></video>
     </div>
     <div class="player-details">
       <h2 id="modal-video-title" style="font-size: 18px; margin-bottom: 8px;"></h2>
@@ -1033,21 +1033,29 @@
       startIframeProgressTracking();
     }
 
-    /* Enhanced Robust PiP Trigger Handler for iOS Safari and Desktop browsers */
+    /* Enhanced Hardware PiP Trigger for Untainted WebKit Video Stream */
     async function triggerSystemPip() {
       const proxyVideo = document.getElementById('proxy-video-player');
       if (!proxyVideo || proxyVideo.style.display === 'none') {
-        alert('System Picture-in-Picture requires an active proxy video stream.');
+        alert('System Picture-in-Picture requires an active local proxy HTML5 video stream.');
         return;
       }
 
       try {
-        // Ensure video state is playing so WebKit permits PiP detachment
         if (proxyVideo.paused) {
           await proxyVideo.play();
         }
 
-        // 1. iOS Safari WebKit presentation mode check
+        // Standard W3C API Check
+        if (document.pictureInPictureElement) {
+          await document.exitPictureInPicture();
+          return;
+        } else if (document.pictureInPictureEnabled && typeof proxyVideo.requestPictureInPicture === 'function') {
+          await proxyVideo.requestPictureInPicture();
+          return;
+        }
+
+        // iOS Safari WebKit presentation mode
         if (typeof proxyVideo.webkitSetPresentationMode === 'function') {
           const currentMode = proxyVideo.webkitPresentationMode;
           const targetMode = (currentMode === 'picture-in-picture') ? 'inline' : 'picture-in-picture';
@@ -1055,24 +1063,10 @@
           return;
         }
 
-        // 2. Standard W3C Picture-in-Picture API check
-        if (document.pictureInPictureElement) {
-          await document.exitPictureInPicture();
-        } else if (document.pictureInPictureEnabled && typeof proxyVideo.requestPictureInPicture === 'function') {
-          await proxyVideo.requestPictureInPicture();
-        } else {
-          // Fallback: request webkit fullscreen where iOS gesture swipe-up can invoke system PiP
-          if (proxyVideo.requestFullscreen) {
-            await proxyVideo.requestFullscreen();
-          } else if (proxyVideo.webkitEnterFullscreen) {
-            proxyVideo.webkitEnterFullscreen();
-          } else {
-            alert('Picture-in-Picture is not supported by your browser environment.');
-          }
-        }
+        alert('Picture-in-Picture is not supported by your current browser.');
       } catch (err) {
         console.error('PiP Activation Error:', err);
-        alert('Could not start Picture-in-Picture. Please ensure the video is playing and try tapping the button again.');
+        alert('Could not start Picture-in-Picture. Make sure video playback is active.');
       }
     }
 
