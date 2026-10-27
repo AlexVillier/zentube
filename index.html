@@ -12,6 +12,7 @@
             --text-color: #f1f1f1;
             --accent-color: #ff0033;
             --surface-color: #212121;
+            --border-color: #333;
         }
         * {
             box-sizing: border-box;
@@ -25,28 +26,37 @@
             min-height: 100vh;
             display: flex;
             flex-direction: column;
+            padding-bottom: 60px; /* Space for bottom nav */
         }
         header {
-            padding: 16px;
+            padding: 12px 16px;
             background: var(--surface-color);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 1px solid #333;
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
         h1 {
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             font-weight: 600;
             letter-spacing: -0.5px;
+            color: var(--accent-color);
         }
-        .container {
+        .main-content {
             flex: 1;
-            display: flex;
-            flex-direction: column;
             max-width: 800px;
             width: 100%;
             margin: 0 auto;
             padding: 16px;
+        }
+        .view-section {
+            display: none;
+        }
+        .view-section.active {
+            display: block;
         }
         .player-wrapper {
             position: relative;
@@ -56,6 +66,7 @@
             border-radius: 12px;
             overflow: hidden;
             box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            margin-bottom: 16px;
         }
         video {
             width: 100%;
@@ -63,22 +74,33 @@
             object-fit: contain;
             outline: none;
         }
-        .controls-overlay {
-            margin-top: 16px;
+        .video-meta {
+            margin-bottom: 24px;
+        }
+        .video-meta h2 {
+            font-size: 1.1rem;
+            margin-bottom: 6px;
+        }
+        .video-meta p {
+            color: #aaa;
+            font-size: 0.85rem;
+        }
+        .search-bar {
             display: flex;
-            gap: 12px;
+            gap: 8px;
+            margin-bottom: 16px;
         }
         input[type="text"] {
             flex: 1;
-            padding: 12px 16px;
+            padding: 10px 14px;
             border-radius: 8px;
-            border: 1px solid #444;
+            border: 1px solid var(--border-color);
             background: var(--surface-color);
             color: #fff;
-            font-size: 1rem;
+            font-size: 0.95rem;
         }
         button {
-            padding: 12px 20px;
+            padding: 10px 16px;
             border-radius: 8px;
             border: none;
             background: var(--accent-color);
@@ -89,74 +111,228 @@
         button:active {
             opacity: 0.8;
         }
-        .pip-btn {
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 16px;
+        }
+        .video-card {
             background: var(--surface-color);
-            border: 1px solid #444;
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
         }
-        .meta-info {
-            margin-top: 16px;
+        .video-card img {
+            width: 100%;
+            aspect-ratio: 16/9;
+            object-fit: cover;
+            background: #000;
         }
-        .meta-info h2 {
-            font-size: 1.1rem;
-            margin-bottom: 8px;
+        .video-card-info {
+            padding: 10px;
         }
-        .meta-info p {
-            color: #aaa;
+        .video-card-info h3 {
             font-size: 0.9rem;
+            margin-bottom: 4px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .video-card-info p {
+            font-size: 0.75rem;
+            color: #aaa;
+        }
+        /* Bottom Navigation Bar */
+        nav.bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 56px;
+            background: var(--surface-color);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 1000;
+        }
+        .nav-item {
+            background: none;
+            border: none;
+            color: #888;
+            font-size: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            flex: 1;
+            padding: 6px 0;
+        }
+        .nav-item.active {
+            color: var(--accent-color);
+        }
+        .settings-group {
+            background: var(--surface-color);
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 16px;
+        }
+        .settings-group h3 {
+            font-size: 1rem;
+            margin-bottom: 12px;
         }
     </style>
 </head>
 <body>
 
     <header>
-        <h1>ZenTube PWA</h1>
-        <button class="pip-btn" id="pipToggleBtn">PiP Mode</button>
+        <h1>ZenTube</h1>
+        <button id="pipToggleBtn" style="padding: 6px 12px; font-size: 0.8rem; background: var(--surface-color); border: 1px solid var(--border-color);">PiP Mode</button>
     </header>
 
-    <div class="container">
-        <div class="player-wrapper">
-            <!-- iOS Safari requires playsinline, webkit-playsinline, and controls for reliable hardware hookups -->
-            <video 
-                id="zentubePlayer" 
-                playsinline 
-                webkit-playsinline 
-                controls
-                preload="metadata"
-                poster="">
-            </video>
+    <div class="main-content">
+        <!-- HOME / FEED VIEW -->
+        <div id="view-home" class="view-section active">
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="Search or enter video ID...">
+                <button id="searchBtn">Search</button>
+            </div>
+            
+            <div class="player-wrapper">
+                <video 
+                    id="zentubePlayer" 
+                    playsinline 
+                    webkit-playsinline 
+                    controls
+                    preload="metadata">
+                </video>
+            </div>
+
+            <div class="video-meta">
+                <h2 id="videoTitle">Select a video to stream</h2>
+                <p id="videoChannel">Proxy Status: Active via Local Invidious Backend</p>
+            </div>
+
+            <h3 style="margin-bottom: 12px; font-size: 1rem;">Trending / Recommended</h3>
+            <div id="trendingGrid" class="video-grid">
+                <!-- Dynamically populated video cards -->
+            </div>
         </div>
 
-        <div class="controls-overlay">
-            <input type="text" id="videoUrlInput" placeholder="Enter YouTube URL or Video ID (e.g. 8DEfI1h-VBY)" value="8DEfI1h-VBY">
-            <button id="loadBtn">Stream</button>
+        <!-- CHANNELS / SUBSCRIPTIONS VIEW -->
+        <div id="view-channels" class="view-section">
+            <h2 style="margin-bottom: 16px;">Subscriptions & Channels</h2>
+            <div class="settings-group">
+                <h3>Google OAuth Feed Sync</h3>
+                <p style="font-size: 0.85rem; color: #aaa; margin-bottom: 12px;">Link your account or enter your Invidious token to load subscription feeds.</p>
+                <input type="text" id="authTokenInput" placeholder="Enter Invidious User Token..." style="margin-bottom: 8px;">
+                <button id="saveTokenBtn">Save Token & Load Feed</button>
+            </div>
+            <div id="subscriptionsGrid" class="video-grid">
+                <!-- Subscribed feed items appear here -->
+            </div>
         </div>
 
-        <div class="meta-info">
-            <h2 id="videoTitle">Ready to Stream</h2>
-            <p id="videoChannel">Proxy Status: Connected via Local Invidious Backend</p>
+        <!-- HISTORY VIEW -->
+        <div id="view-history" class="view-section">
+            <h2 style="margin-bottom: 16px;">Watch History</h2>
+            <div id="historyGrid" class="video-grid">
+                <!-- Local watch history items -->
+            </div>
+        </div>
+
+        <!-- SETTINGS VIEW -->
+        <div id="view-settings" class="view-section">
+            <h2 style="margin-bottom: 16px;">Settings</h2>
+            <div class="settings-group">
+                <h3>Proxy Backend Configuration</h3>
+                <label style="font-size: 0.85rem; color: #aaa; display: block; margin-bottom: 6px;">Invidious API Base URL (leave blank if hosted on same domain)</label>
+                <input type="text" id="proxyUrlInput" value="" placeholder="http://your-ip:3000" style="margin-bottom: 12px;">
+                <button id="saveProxyBtn">Save Proxy Settings</button>
+            </div>
+            <div class="settings-group">
+                <h3>Player Preferences</h3>
+                <p style="font-size: 0.85rem; color: #aaa;">Optimized for iOS touch interaction, local tracking, and native system PiP playback.</p>
+            </div>
         </div>
     </div>
 
+    <!-- BOTTOM TAB NAVIGATION -->
+    <nav class="bottom-nav">
+        <button class="nav-item active" data-target="view-home">Home</button>
+        <button class="nav-item" data-target="view-channels">Channels</button>
+        <button class="nav-item" data-target="view-history">History</button>
+        <button class="nav-item" data-target="view-settings">Settings</button>
+    </nav>
+
     <script>
-        // Configure your self-hosted Invidious proxy endpoint here
-        const INVIDIOUS_API_BASE = ""; 
+        // Config state
+        let INVIDIOUS_API_BASE = localStorage.getItem('zentube_proxy') || "";
+        let userToken = localStorage.getItem('zentube_token') || "";
 
         const videoPlayer = document.getElementById('zentubePlayer');
-        const videoUrlInput = document.getElementById('videoUrlInput');
-        const loadBtn = document.getElementById('loadBtn');
-        const pipToggleBtn = document.getElementById('pipToggleBtn');
         const videoTitle = document.getElementById('videoTitle');
+        const videoChannel = document.getElementById('videoChannel');
+        const searchInput = document.getElementById('searchInput');
+        const searchBtn = document.getElementById('searchBtn');
+        const pipToggleBtn = document.getElementById('pipToggleBtn');
+        const trendingGrid = document.getElementById('trendingGrid');
 
-        async function loadVideo(query) {
-            let videoId = query.trim();
-            
-            // Basic URL cleaner to extract video ID if a full link is pasted
-            if (videoId.includes('youtube.com') || videoId.includes('youtu.be')) {
-                const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-                const match = videoId.match(regExp);
-                if (match && match[2].length === 11) {
-                    videoId = match[2];
+        // Tab Navigation Logic
+        document.querySelectorAll('.nav-item').forEach(button => {
+            button.addEventListener('click', (e) => {
+                document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
+                
+                button.classList.add('active');
+                const targetView = document.getElementById(button.getAttribute('data-target'));
+                targetView.classList.add('active');
+
+                if (button.getAttribute('data-target') === 'view-history') {
+                    loadWatchHistory();
                 }
+            });
+        });
+
+        // Load Trending / Home Feed on startup
+        async function loadHomeFeed() {
+            try {
+                const res = `${INVIDIOUS_API_BASE}/api/v1/trending`;
+                const response = await fetch(res);
+                if (!response.ok) throw new Error("Failed to fetch trending feed");
+                const videos = await response.json();
+                
+                trendingGrid.innerHTML = "";
+                videos.slice(0, 12).forEach(vid => {
+                    const card = document.createElement('div');
+                    card.className = 'video-card';
+                    card.innerHTML = `
+                        <img src="${vid.videoThumbnails?.[0]?.url || ''}" alt="Thumbnail">
+                        <div class="video-card-info">
+                            <h3>${vid.title}</h3>
+                            <p>${vid.author}</p>
+                        </div>
+                    `;
+                    card.addEventListener('click', () => loadAndPlayVideo(vid.videoId));
+                    trendingGrid.appendChild(card);
+                });
+            } catch (err) {
+                console.error("Home feed load error:", err);
+                trendingGrid.innerHTML = `<p style="color: #aaa; grid-column: span 2;">Unable to load feed from proxy backend. Check connection.</p>`;
+            }
+        }
+
+        // Stream and Play Video
+        async function loadAndPlayVideo(videoIdOrUrl) {
+            let videoId = videoIdOrUrl.trim();
+            if (videoId.includes('youtube.com') || videoId.includes('youtu.be')) {
+                const match = videoId.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/);
+                if (match && match[2].length === 11) videoId = match[2];
             }
 
             if (!videoId) return;
@@ -164,60 +340,96 @@
             videoTitle.textContent = "Fetching stream data from proxy...";
 
             try {
-                // Fetch video details and direct adaptive stream links via Invidious API
                 const response = await fetch(`${INVIDIOUS_API_BASE}/api/v1/videos/${videoId}`);
                 if (!response.ok) throw new Error(`Proxy error: ${response.statusText}`);
                 
                 const data = await response.json();
                 videoTitle.textContent = data.title || "Untitled Video";
+                videoChannel.textContent = data.author || "Channel";
 
-                // Grab the highest priority adaptive stream URL (fallback to conventional format if needed)
                 const streams = data.adaptiveFormats || [];
                 const bestStream = streams.find(s => s.type && s.type.includes('video/mp4') && s.qualityLabel) || streams[0];
                 
                 if (bestStream && bestStream.url) {
                     videoPlayer.src = bestStream.url;
                     videoPlayer.play().catch(e => console.log("Autoplay blocked:", e));
-                } else if (data.formatStreams && data.formatStreams.length > 0) {
-                    videoPlayer.src = data.formatStreams[0].url;
-                    videoPlayer.play();
+                    saveToHistory({ id: videoId, title: data.title, author: data.author, thumbnail: data.videoThumbnails?.[0]?.url });
                 } else {
-                    throw new Error("No valid playback streams found in API response.");
+                    throw new Error("No adaptive streams found.");
                 }
-
             } catch (err) {
                 console.error("Playback load failure:", err);
-                videoTitle.textContent = "Error loading stream. Check console or proxy logs.";
+                videoTitle.textContent = "Error loading stream.";
             }
         }
 
-        loadBtn.addEventListener('click', () => {
-            loadVideo(videoUrlInput.value);
-        });
+        // Local Watch History Handler (localStorage)
+        function saveToHistory(videoObj) {
+            let history = JSON.parse(localStorage.getItem('zentube_history') || '[]');
+            history = history.filter(item => item.id !== videoObj.id);
+            history.unshift(videoObj);
+            if (history.length > 30) history.pop();
+            localStorage.setItem('zentube_history', JSON.stringify(history));
+        }
 
-        videoUrlInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                loadVideo(videoUrlInput.value);
+        function loadWatchHistory() {
+            const historyGrid = document.getElementById('historyGrid');
+            const history = JSON.parse(localStorage.getItem('zentube_history') || '[]');
+            historyGrid.innerHTML = "";
+            
+            if (history.length === 0) {
+                historyGrid.innerHTML = `<p style="color: #aaa; grid-column: span 2;">No watch history yet.</p>`;
+                return;
             }
-        });
 
-        // Robust Picture-in-Picture Trigger Handler for iOS/Safari WebKit
+            history.forEach(vid => {
+                const card = document.createElement('div');
+                card.className = 'video-card';
+                card.innerHTML = `
+                    <img src="${vid.thumbnail || ''}" alt="Thumbnail">
+                    <div class="video-card-info">
+                        <h3>${vid.title}</h3>
+                        <p>${vid.author}</p>
+                    </div>
+                `;
+                card.addEventListener('click', () => {
+                    document.querySelector('[data-target="view-home"]').click();
+                    loadAndPlayVideo(vid.id);
+                });
+                historyGrid.appendChild(card);
+            });
+        }
+
+        // Search Handlers
+        searchBtn.addEventListener('click', () => loadAndPlayVideo(searchInput.value));
+        searchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') loadAndPlayVideo(searchInput.value); });
+
+        // PiP Button Trigger
         pipToggleBtn.addEventListener('click', async () => {
             try {
                 if (document.pictureInPictureElement) {
                     await document.exitPictureInPicture();
                 } else if (document.pictureInPictureEnabled) {
                     await videoPlayer.requestPictureInPicture();
-                } else {
-                    alert("Picture-in-Picture is not supported or permitted on this browser/device state.");
                 }
             } catch (error) {
                 console.error("PiP toggle failed:", error);
             }
         });
 
-        // Initial load trigger on startup
-        loadVideo(videoUrlInput.value);
+        // Settings Actions
+        document.getElementById('saveProxyBtn').addEventListener('click', () => {
+            const val = document.getElementById('proxyUrlInput').value.trim();
+            localStorage.setItem('zentube_proxy', val);
+            INVIDIOUS_API_BASE = val;
+            alert("Proxy configuration saved!");
+            loadHomeFeed();
+        });
+
+        document.getElementById('proxyUrlInput').value = INVIDIOUS_API_BASE;
+
+        // Initialize Feed
+        loadHomeFeed();
     </script>
 </body>
 </html>
