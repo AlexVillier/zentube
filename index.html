@@ -704,7 +704,7 @@
         tokenClient.requestAccessToken({ prompt: '' });
       } else {
         alert('Please save your OAuth Client ID in Settings first.');
-        switchTab('settings-view', document.querySelectorAll('.nav-item')[3]);
+        switchTab('settings-view', document.querySelector('.nav-item:nth-child(4)'));
       }
     }
 
@@ -913,9 +913,11 @@
     function renderFeed(videos, containerId) {
       const grid = document.getElementById(containerId);
       if (!grid) return;
+      
+      const feedToRender = (!videos || videos.length === 0) ? demoVideos : videos;
       grid.innerHTML = '';
 
-      videos.forEach(v => {
+      feedToRender.forEach(v => {
         const prog = watchProgress[v.id] || { currentTime: 0, duration: v.duration || 0 };
         const percent = prog.duration ? Math.min(100, Math.round((prog.currentTime / prog.duration) * 100)) : 0;
         
@@ -1035,7 +1037,6 @@
       startIframeProgressTracking();
     }
 
-    /* Standalone WebApp WebKit PiP Unconstrain Fix */
     function triggerSystemPip() {
       const proxyVideo = document.getElementById('proxy-video-player');
       if (!proxyVideo) {
@@ -1049,7 +1050,6 @@
         proxyVideo.play();
       }
 
-      // Direct synchronous WebKit Presentation Mode trigger for standalone iOS WebApp mode
       if (typeof proxyVideo.webkitSetPresentationMode === 'function') {
         const currentMode = proxyVideo.webkitPresentationMode;
         const targetMode = (currentMode === 'picture-in-picture') ? 'inline' : 'picture-in-picture';
@@ -1057,7 +1057,6 @@
         return;
       }
 
-      // Standard W3C API Fallback
       if (document.pictureInPictureElement) {
         document.exitPictureInPicture();
       } else if (document.pictureInPictureEnabled && typeof proxyVideo.requestPictureInPicture === 'function') {
@@ -1076,3 +1075,102 @@
           const duration = ytPlayer.getDuration();
           watchProgress[currentVideoId] = { currentTime: duration, duration: duration, updatedAt: Date.now() };
           localStorage.setItem('zentube_watch_progress', JSON.stringify(watchProgress));
+          updateCurrentFeedUI();
+        }
+      } else {
+        stopProgressTracking();
+      }
+    }
+
+    function startIframeProgressTracking() {
+      stopProgressTracking();
+      progressInterval = setInterval(() => {
+        if (ytPlayer && ytPlayer.getCurrentTime && currentVideoId) {
+          const currentTime = ytPlayer.getCurrentTime();
+          const duration = ytPlayer.getDuration();
+          if (duration > 0) {
+            watchProgress[currentVideoId] = { currentTime, duration, updatedAt: Date.now() };
+            localStorage.setItem('zentube_watch_progress', JSON.stringify(watchProgress));
+            updateCurrentFeedUI();
+          }
+        }
+      }, 3000);
+    }
+
+    function startProxyProgressTracking(videoEl) {
+      stopProgressTracking();
+      progressInterval = setInterval(() => {
+        if (videoEl && currentVideoId) {
+          const currentTime = videoEl.currentTime;
+          const duration = videoEl.duration;
+          if (duration > 0) {
+            watchProgress[currentVideoId] = { currentTime, duration, updatedAt: Date.now() };
+            localStorage.setItem('zentube_watch_progress', JSON.stringify(watchProgress));
+            if (currentTime >= duration - 1) {
+              updateCurrentFeedUI();
+            }
+          }
+        }
+      }, 3000);
+    }
+
+    function stopProgressTracking() {
+      if (progressInterval) clearInterval(progressInterval);
+    }
+
+    function updateCurrentFeedUI() {
+      if (activeFeedVideos.length > 0) {
+        renderFeed(activeFeedVideos, 'video-grid');
+      } else {
+        renderFeed(demoVideos, 'video-grid');
+      }
+    }
+
+    function closePlayer() {
+      stopProgressTracking();
+      if (ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
+      const proxyVideo = document.getElementById('proxy-video-player');
+      if (proxyVideo) {
+        proxyVideo.pause();
+        proxyVideo.src = '';
+        proxyVideo.style.display = 'none';
+      }
+      const ytContainer = document.getElementById('youtube-player');
+      if (ytContainer) {
+        ytContainer.style.display = 'none';
+      }
+      
+      const modal = document.getElementById('player-modal');
+      if (modal) modal.classList.remove('active', 'docked');
+      updateCurrentFeedUI();
+    }
+
+    function toggleDockPlayer() {
+      const modal = document.getElementById('player-modal');
+      if (modal) modal.classList.toggle('docked');
+    }
+
+    function clearWatchHistory() {
+      if (confirm('Clear all local watch progress data?')) {
+        watchProgress = {};
+        localStorage.removeItem('zentube_watch_progress');
+        updateCurrentFeedUI();
+      }
+    }
+
+    function switchTab(viewId, el) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      
+      const target = document.getElementById(viewId);
+      if (target) target.classList.add('active');
+
+      // Safely find and activate the clicked navigation item container
+      const navItem = el ? el.closest('.nav-item') : null;
+      if (navItem) {
+        navItem.classList.add('active');
+      }
+    }
+  </script>
+</body>
+</html>
