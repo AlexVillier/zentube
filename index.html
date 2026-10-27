@@ -571,8 +571,12 @@
     <div class="player-details">
       <h2 id="modal-video-title" style="font-size: 18px; margin-bottom: 8px;"></h2>
       <p id="modal-channel-title" style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px;"></p>
-      <div style="padding: 12px; background: var(--bg-surface); border-radius: 12px; border: 1px solid var(--border-color); font-size: 13px; color: var(--text-secondary); line-height: 1.4;" id="modal-description">
+      <div style="padding: 12px; background: var(--bg-surface); border-radius: 12px; border: 1px solid var(--border-color); font-size: 13px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 12px;" id="modal-description">
         System Picture-in-Picture is active when playing videos via direct proxy stream. Tap the highlighted PiP icon above or leave Safari when video is playing.
+      </div>
+      <!-- Live PiP Debug Box -->
+      <div style="padding: 10px; background: #000; border-radius: 8px; border: 1px solid var(--accent-color); font-family: monospace; font-size: 11px; color: #30d158; line-height: 1.3;" id="pip-debug-box">
+        PiP Debug Log: Ready
       </div>
     </div>
   </div>
@@ -635,20 +639,33 @@
       }
     });
 
+    function logPipDebug(msg) {
+      const box = document.getElementById('pip-debug-box');
+      if (box) {
+        const timestamp = new Date().toLocaleTimeString();
+        box.innerHTML = `[${timestamp}] ${msg}`;
+      }
+      console.log('PiP Debug:', msg);
+    }
+
     function setupVideoPipEventListeners() {
       const video = document.getElementById('proxy-video-player');
       if (!video) return;
 
       video.addEventListener('webkitpresentationmodechanged', (e) => {
-        console.log('iOS WebKit presentation mode changed:', video.webkitPresentationMode);
+        logPipDebug(`webkitmode changed: ${video.webkitPresentationMode}`);
       });
 
       video.addEventListener('enterpictureinpicture', () => {
-        console.log('Entered standard Picture-in-Picture');
+        logPipDebug('Event: enterpictureinpicture');
       });
 
       video.addEventListener('leavepictureinpicture', () => {
-        console.log('Exited standard Picture-in-Picture');
+        logPipDebug('Event: leavepictureinpicture');
+      });
+
+      video.addEventListener('error', (e) => {
+        logPipDebug(`Video Error code: ${video.error ? video.error.code : 'unknown'}`);
       });
     }
 
@@ -957,6 +974,7 @@
       document.getElementById('player-title').textContent = title;
       document.getElementById('modal-video-title').textContent = title;
       document.getElementById('modal-channel-title').textContent = channel;
+      logPipDebug('Player opened. Waiting for proxy stream...');
 
       const savedTime = watchProgress[videoId] ? watchProgress[videoId].currentTime : 0;
       const ytContainer = document.getElementById('youtube-player');
@@ -995,15 +1013,17 @@
               });
             }
             startProxyProgressTracking(proxyVideo);
+            logPipDebug('Proxy stream active & playing.');
           } else {
             throw new Error('No valid MP4 stream found');
           }
         } catch (err) {
-          console.warn('Proxy stream error, falling back to YouTube iframe player:', err);
+          logPipDebug(`Proxy error: ${err.message}. Fallback to iframe.`);
           pipBtn.style.display = 'none';
           loadIframePlayer(videoId, savedTime);
         }
       } else {
+        logPipDebug('No proxyUrl set. Using iframe.');
         pipBtn.style.display = 'none';
         loadIframePlayer(videoId, savedTime);
       }
@@ -1040,29 +1060,42 @@
     function triggerSystemPip() {
       const proxyVideo = document.getElementById('proxy-video-player');
       if (!proxyVideo) {
-        alert('System Picture-in-Picture requires an active video stream.');
+        logPipDebug('Error: #proxy-video-player not found in DOM.');
         return;
       }
 
-      proxyVideo.style.display = 'block';
+      logPipDebug(`Triggering PiP... paused=${proxyVideo.paused}, readyState=${proxyVideo.readyState}`);
 
-      if (proxyVideo.paused) {
-        proxyVideo.play();
-      }
+      try {
+        proxyVideo.style.display = 'block';
 
-      if (typeof proxyVideo.webkitSetPresentationMode === 'function') {
-        const currentMode = proxyVideo.webkitPresentationMode;
-        const targetMode = (currentMode === 'picture-in-picture') ? 'inline' : 'picture-in-picture';
-        proxyVideo.webkitSetPresentationMode(targetMode);
-        return;
-      }
+        if (proxyVideo.paused) {
+          proxyVideo.play();
+        }
 
-      if (document.pictureInPictureElement) {
-        document.exitPictureInPicture();
-      } else if (document.pictureInPictureEnabled && typeof proxyVideo.requestPictureInPicture === 'function') {
-        proxyVideo.requestPictureInPicture();
-      } else {
-        alert('Picture-in-Picture is not supported by your current browser environment.');
+        if (typeof proxyVideo.webkitSetPresentationMode === 'function') {
+          const currentMode = proxyVideo.webkitPresentationMode;
+          logPipDebug(`webkitMode current: ${currentMode}`);
+          const targetMode = (currentMode === 'picture-in-picture') ? 'inline' : 'picture-in-picture';
+          proxyVideo.webkitSetPresentationMode(targetMode);
+          logPipDebug(`Requested webkitMode: ${targetMode}`);
+          return;
+        }
+
+        if (document.pictureInPictureElement) {
+          document.exitPictureInPicture();
+          logPipDebug('Exited W3C PiP.');
+        } else if (document.pictureInPictureEnabled && typeof proxyVideo.requestPictureInPicture === 'function') {
+          proxyVideo.requestPictureInPicture();
+          logPipDebug('Requested W3C PiP.');
+        } else {
+          logPipDebug('Error: Neither webkitSetPresentationMode nor W3C PiP available.');
+          alert('Picture-in-Picture is not supported by your current browser environment.');
+        }
+      } catch (err) {
+        logPipDebug(`PiP Exception: ${err.message}`);
+        console.error('PiP Activation Error:', err);
+        alert(`Could not start PiP: ${err.message}`);
       }
     }
 
@@ -1165,7 +1198,6 @@
       const target = document.getElementById(viewId);
       if (target) target.classList.add('active');
 
-      // Safely find and activate the clicked navigation item container
       const navItem = el ? el.closest('.nav-item') : null;
       if (navItem) {
         navItem.classList.add('active');
