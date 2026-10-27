@@ -1035,20 +1035,22 @@
       startIframeProgressTracking();
     }
 
-    /* Enhanced PiP Trigger with iOS WebKit Presentation Mode */
+    /* Targeted iOS Standalone WebApp PiP Detachment Fix */
     async function triggerSystemPip() {
       const proxyVideo = document.getElementById('proxy-video-player');
-      if (!proxyVideo || proxyVideo.style.display === 'none') {
-        alert('System Picture-in-Picture requires an active local proxy HTML5 video stream.');
+      if (!proxyVideo) {
+        alert('System Picture-in-Picture requires an active video stream.');
         return;
       }
 
       try {
+        proxyVideo.style.display = 'block';
+
         if (proxyVideo.paused) {
           await proxyVideo.play();
         }
 
-        // Direct iOS Safari WebKit presentation mode trigger
+        // Direct iOS Safari / WebApp WebKit presentation mode trigger
         if (typeof proxyVideo.webkitSetPresentationMode === 'function') {
           const currentMode = proxyVideo.webkitPresentationMode;
           const targetMode = (currentMode === 'picture-in-picture') ? 'inline' : 'picture-in-picture';
