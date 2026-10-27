@@ -565,7 +565,7 @@
     <div class="player-container" id="player-container">
       <div id="youtube-player"></div>
       <!-- Native HTML5 Video Element explicitly configured for iOS Safari WebKit PiP -->
-      <video id="proxy-video-player" controls playsinline webkit-playsinline x-webkit-airplay="allow" style="display: none; width: 100%; height: 100%;"></video>
+      <video id="proxy-video-player" controls playsinline webkit-playsinline x-webkit-airplay="allow" disablepictureinpicture="false" style="display: none; width: 100%; height: 100%;"></video>
     </div>
     <div class="player-details">
       <h2 id="modal-video-title" style="font-size: 18px; margin-bottom: 8px;"></h2>
@@ -1033,16 +1033,21 @@
       startIframeProgressTracking();
     }
 
-    /* Enhanced Robust PiP Trigger Handler for iOS and Desktop */
+    /* Enhanced Robust PiP Trigger Handler for iOS Safari and Desktop browsers */
     async function triggerSystemPip() {
       const proxyVideo = document.getElementById('proxy-video-player');
       if (!proxyVideo || proxyVideo.style.display === 'none') {
-        alert('System Picture-in-Picture requires an active local proxy HTML5 video stream.');
+        alert('System Picture-in-Picture requires an active proxy video stream.');
         return;
       }
 
       try {
-        // 1. iOS Safari WebKit presentation mode handler
+        // Ensure video state is playing so WebKit permits PiP detachment
+        if (proxyVideo.paused) {
+          await proxyVideo.play();
+        }
+
+        // 1. iOS Safari WebKit presentation mode check
         if (typeof proxyVideo.webkitSetPresentationMode === 'function') {
           const currentMode = proxyVideo.webkitPresentationMode;
           const targetMode = (currentMode === 'picture-in-picture') ? 'inline' : 'picture-in-picture';
@@ -1050,17 +1055,24 @@
           return;
         }
 
-        // 2. Standard W3C Picture-in-Picture API handler (Desktop / Android Chrome / Safari)
+        // 2. Standard W3C Picture-in-Picture API check
         if (document.pictureInPictureElement) {
           await document.exitPictureInPicture();
         } else if (document.pictureInPictureEnabled && typeof proxyVideo.requestPictureInPicture === 'function') {
           await proxyVideo.requestPictureInPicture();
         } else {
-          alert('Picture-in-Picture is not supported by your current browser or device setup.');
+          // Fallback: request webkit fullscreen where iOS gesture swipe-up can invoke system PiP
+          if (proxyVideo.requestFullscreen) {
+            await proxyVideo.requestFullscreen();
+          } else if (proxyVideo.webkitEnterFullscreen) {
+            proxyVideo.webkitEnterFullscreen();
+          } else {
+            alert('Picture-in-Picture is not supported by your browser environment.');
+          }
         }
       } catch (err) {
         console.error('PiP Activation Error:', err);
-        alert('Could not start Picture-in-Picture. Make sure the video is playing and has user focus.');
+        alert('Could not start Picture-in-Picture. Please ensure the video is playing and try tapping the button again.');
       }
     }
 
@@ -1156,7 +1168,6 @@
       document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
       const target = document.getElementById(viewId);
       if (target) target.classList.add('active');
-      if (el) el.classList.add('sub'); // safe class application
       if (el) el.classList.add('active');
     }
   </script>
