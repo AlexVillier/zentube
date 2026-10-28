@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>ZenTube - Minimalist YouTube with iOS PiP</title>
+  <title>ZenTube - Minimalist YouTube with iOS PiP & Background Audio</title>
   
   <!-- iOS WebApp Meta Tags for Native Feel -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -630,6 +630,7 @@
 
         renderFeed(demoVideos, 'video-grid');
         setupVideoPipEventListeners();
+        setupBackgroundAudioHandlers();
 
         if (window.google && window.google.accounts) {
           initGoogleAuth();
@@ -667,6 +668,47 @@
       video.addEventListener('error', (e) => {
         logPipDebug(`Video Error code: ${video.error ? video.error.code : 'unknown'}`);
       });
+    }
+
+    /* iOS Native Media Session & Background Audio Preservation */
+    function setupBackgroundAudioHandlers() {
+      const proxyVideo = document.getElementById('proxy-video-player');
+
+      // Bind iOS Control Center / Lock Screen play/pause actions
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.setActionHandler('play', () => {
+          if (proxyVideo) proxyVideo.play();
+        });
+        navigator.mediaSession.setActionHandler('pause', () => {
+          if (proxyVideo) proxyVideo.pause();
+        });
+      }
+
+      // Prevent iOS WebKit from forcing a video pause when app loses visibility
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden && proxyVideo && !proxyVideo.paused) {
+          logPipDebug('App backgrounded — maintaining audio stream playback');
+          // Re-trigger play on tick if iOS attempts auto-pause
+          setTimeout(() => {
+            if (proxyVideo.paused && currentVideoId) {
+              proxyVideo.play().catch(e => console.warn('Background resume:', e));
+            }
+          }, 100);
+        }
+      });
+    }
+
+    function updateMediaSessionMetadata(title, channel, thumbnail) {
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: title,
+          artist: channel,
+          album: 'ZenTube',
+          artwork: [
+            { src: thumbnail, sizes: '512x512', type: 'image/jpeg' }
+          ]
+        });
+      }
     }
 
     function onGisLibraryLoad() {
@@ -941,268 +983,4 @@
         let badgeHTML = '';
         if (percent >= 90) {
           badgeHTML = `<div class="watch-badge completed">✓ Watched</div>`;
-        } else if (percent > 5) {
-          badgeHTML = `<div class="watch-badge in-progress">${percent}%</div>`;
-        }
-
-        const card = document.createElement('div');
-        card.className = 'video-card';
-        card.onclick = () => openPlayer(v.id, v.title, v.channel);
-        card.innerHTML = `
-          <div class="thumbnail-wrapper">
-            <img class="thumbnail-img" src="${v.thumbnail}" alt="${v.title}" />
-            ${badgeHTML}
-            ${percent > 0 && percent < 90 ? `<div class="progress-bar-container"><div class="progress-bar-fill" style="width: ${percent}%;"></div></div>` : ''}
-          </div>
-          <div class="video-info">
-            <div class="video-title">${v.title}</div>
-            <div class="video-meta">${v.channel}</div>
-          </div>
-        `;
-        grid.appendChild(card);
-      });
-    }
-
-    async function openPlayer(videoId, title, channel) {
-      currentVideoId = videoId;
-      const modal = document.getElementById('player-modal');
-      const pipBtn = document.getElementById('pip-btn');
-      
-      modal.classList.remove('docked');
-      modal.classList.add('active');
-
-      document.getElementById('player-title').textContent = title;
-      document.getElementById('modal-video-title').textContent = title;
-      document.getElementById('modal-channel-title').textContent = channel;
-      logPipDebug('Player opened. Waiting for proxy stream...');
-
-      const savedTime = watchProgress[videoId] ? watchProgress[videoId].currentTime : 0;
-      const ytContainer = document.getElementById('youtube-player');
-      const proxyVideo = document.getElementById('proxy-video-player');
-
-      if (proxyUrl) {
-        ytContainer.style.display = 'none';
-        proxyVideo.style.display = 'block';
-        pipBtn.style.display = 'flex';
-
-        try {
-          const res = await fetch(`${proxyUrl}/api/v1/videos/${videoId}`);
-          const data = await res.json();
-          let rawStreamUrl = '';
-
-          if (data.formatStreams && data.formatStreams.length > 0) {
-            const mp4Stream = data.formatStreams.find(s => s.container === 'mp4' || s.type?.includes('mp4'));
-            rawStreamUrl = mp4Stream ? mp4Stream.url : data.formatStreams[0].url;
-          } else if (data.adaptiveFormats && data.adaptiveFormats.length > 0) {
-            const mp4Adaptive = data.adaptiveFormats.find(f => f.container === 'mp4' && f.type?.includes('video'));
-            if (mp4Adaptive) rawStreamUrl = mp4Adaptive.url;
-          }
-
-          if (rawStreamUrl) {
-            const streamUrl = rawStreamUrl.includes('?') ? `${rawStreamUrl}&local=true` : `${rawStreamUrl}?local=true`;
-            
-            proxyVideo.src = streamUrl;
-            proxyVideo.currentTime = savedTime;
-            
-            const playPromise = proxyVideo.play();
-            if (playPromise !== undefined) {
-              playPromise.catch(e => {
-                console.warn('Auto-play muted fallback triggered:', e);
-                proxyVideo.muted = true;
-                proxyVideo.play();
-              });
-            }
-            startProxyProgressTracking(proxyVideo);
-            logPipDebug('Proxy stream active & playing.');
-          } else {
-            throw new Error('No valid MP4 stream found');
-          }
-        } catch (err) {
-          logPipDebug(`Proxy error: ${err.message}. Fallback to iframe.`);
-          pipBtn.style.display = 'none';
-          loadIframePlayer(videoId, savedTime);
-        }
-      } else {
-        logPipDebug('No proxyUrl set. Using iframe.');
-        pipBtn.style.display = 'none';
-        loadIframePlayer(videoId, savedTime);
-      }
-    }
-
-    function loadIframePlayer(videoId, savedTime) {
-      const ytContainer = document.getElementById('youtube-player');
-      const proxyVideo = document.getElementById('proxy-video-player');
-      proxyVideo.style.display = 'none';
-      ytContainer.style.display = 'block';
-
-      if (typeof YT !== 'undefined' && YT.Player) {
-        if (!ytPlayer) {
-          ytPlayer = new YT.Player('youtube-player', {
-            videoId: videoId,
-            playerVars: {
-              autoplay: 1,
-              start: Math.floor(savedTime),
-              playsinline: 1,
-              modestbranding: 1
-            },
-            events: {
-              'onStateChange': onPlayerStateChange
-            }
-          });
-        } else {
-          ytPlayer.loadVideoById({ videoId: videoId, startSeconds: Math.floor(savedTime) });
-        }
-      }
-
-      startIframeProgressTracking();
-    }
-
-    function triggerSystemPip() {
-      const proxyVideo = document.getElementById('proxy-video-player');
-      if (!proxyVideo) {
-        logPipDebug('Error: #proxy-video-player not found in DOM.');
-        return;
-      }
-
-      logPipDebug(`Triggering PiP... paused=${proxyVideo.paused}, readyState=${proxyVideo.readyState}`);
-
-      try {
-        proxyVideo.style.display = 'block';
-
-        if (proxyVideo.paused) {
-          proxyVideo.play();
-        }
-
-        if (typeof proxyVideo.webkitSetPresentationMode === 'function') {
-          const currentMode = proxyVideo.webkitPresentationMode;
-          logPipDebug(`webkitMode current: ${currentMode}`);
-          const targetMode = (currentMode === 'picture-in-picture') ? 'inline' : 'picture-in-picture';
-          proxyVideo.webkitSetPresentationMode(targetMode);
-          logPipDebug(`Requested webkitMode: ${targetMode}`);
-          return;
-        }
-
-        if (document.pictureInPictureElement) {
-          document.exitPictureInPicture();
-          logPipDebug('Exited W3C PiP.');
-        } else if (document.pictureInPictureEnabled && typeof proxyVideo.requestPictureInPicture === 'function') {
-          proxyVideo.requestPictureInPicture();
-          logPipDebug('Requested W3C PiP.');
-        } else {
-          logPipDebug('Error: Neither webkitSetPresentationMode nor W3C PiP available.');
-          alert('Picture-in-Picture is not supported by your current browser environment.');
-        }
-      } catch (err) {
-        logPipDebug(`PiP Exception: ${err.message}`);
-        console.error('PiP Activation Error:', err);
-        alert(`Could not start PiP: ${err.message}`);
-      }
-    }
-
-    function onPlayerStateChange(event) {
-      if (typeof YT !== 'undefined' && event.data === YT.PlayerState.PLAYING) {
-        startIframeProgressTracking();
-      } else if (typeof YT !== 'undefined' && event.data === YT.PlayerState.ENDED) {
-        stopProgressTracking();
-        if (currentVideoId && ytPlayer && ytPlayer.getDuration) {
-          const duration = ytPlayer.getDuration();
-          watchProgress[currentVideoId] = { currentTime: duration, duration: duration, updatedAt: Date.now() };
-          localStorage.setItem('zentube_watch_progress', JSON.stringify(watchProgress));
-          updateCurrentFeedUI();
-        }
-      } else {
-        stopProgressTracking();
-      }
-    }
-
-    function startIframeProgressTracking() {
-      stopProgressTracking();
-      progressInterval = setInterval(() => {
-        if (ytPlayer && ytPlayer.getCurrentTime && currentVideoId) {
-          const currentTime = ytPlayer.getCurrentTime();
-          const duration = ytPlayer.getDuration();
-          if (duration > 0) {
-            watchProgress[currentVideoId] = { currentTime, duration, updatedAt: Date.now() };
-            localStorage.setItem('zentube_watch_progress', JSON.stringify(watchProgress));
-            updateCurrentFeedUI();
-          }
-        }
-      }, 3000);
-    }
-
-    function startProxyProgressTracking(videoEl) {
-      stopProgressTracking();
-      progressInterval = setInterval(() => {
-        if (videoEl && currentVideoId) {
-          const currentTime = videoEl.currentTime;
-          const duration = videoEl.duration;
-          if (duration > 0) {
-            watchProgress[currentVideoId] = { currentTime, duration, updatedAt: Date.now() };
-            localStorage.setItem('zentube_watch_progress', JSON.stringify(watchProgress));
-            if (currentTime >= duration - 1) {
-              updateCurrentFeedUI();
-            }
-          }
-        }
-      }, 3000);
-    }
-
-    function stopProgressTracking() {
-      if (progressInterval) clearInterval(progressInterval);
-    }
-
-    function updateCurrentFeedUI() {
-      if (activeFeedVideos.length > 0) {
-        renderFeed(activeFeedVideos, 'video-grid');
-      } else {
-        renderFeed(demoVideos, 'video-grid');
-      }
-    }
-
-    function closePlayer() {
-      stopProgressTracking();
-      if (ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
-      const proxyVideo = document.getElementById('proxy-video-player');
-      if (proxyVideo) {
-        proxyVideo.pause();
-        proxyVideo.src = '';
-        proxyVideo.style.display = 'none';
-      }
-      const ytContainer = document.getElementById('youtube-player');
-      if (ytContainer) {
-        ytContainer.style.display = 'none';
-      }
-      
-      const modal = document.getElementById('player-modal');
-      if (modal) modal.classList.remove('active', 'docked');
-      updateCurrentFeedUI();
-    }
-
-    function toggleDockPlayer() {
-      const modal = document.getElementById('player-modal');
-      if (modal) modal.classList.toggle('docked');
-    }
-
-    function clearWatchHistory() {
-      if (confirm('Clear all local watch progress data?')) {
-        watchProgress = {};
-        localStorage.removeItem('zentube_watch_progress');
-        updateCurrentFeedUI();
-      }
-    }
-
-    function switchTab(viewId, el) {
-      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-      
-      const target = document.getElementById(viewId);
-      if (target) target.classList.add('active');
-
-      const navItem = el ? el.closest('.nav-item') : null;
-      if (navItem) {
-        navItem.classList.add('active');
-      }
-    }
-  </script>
-</body>
-</html>
+        } else if
