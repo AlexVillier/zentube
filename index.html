@@ -568,6 +568,8 @@
     <div class="player-container" id="player-container">
       <div id="youtube-player"></div>
       <video id="proxy-video-player" controls playsinline webkit-playsinline x-webkit-airplay="allow" disablepictureinpicture="false"></video>
+      <!-- Silent background keep-alive audio loop -->
+      <audio id="bg-audio-keeper" loop style="display:none;"></audio>
     </div>
     <div class="player-details">
       <h2 id="modal-video-title" style="font-size: 18px; margin-bottom: 8px;"></h2>
@@ -671,34 +673,52 @@
       });
     }
 
-    /* Safe iOS Native Media Session & Background Audio Preservation */
+    /* iOS Native Media Session & Background Audio Keep-Alive */
     function setupBackgroundAudioHandlers() {
       const proxyVideo = document.getElementById('proxy-video-player');
+      const bgKeeper = document.getElementById('bg-audio-keeper');
 
       try {
         if ('mediaSession' in navigator) {
           navigator.mediaSession.setActionHandler('play', () => {
             if (proxyVideo) proxyVideo.play();
+            if (bgKeeper) bgKeeper.play();
           });
           navigator.mediaSession.setActionHandler('pause', () => {
             if (proxyVideo) proxyVideo.pause();
+            if (bgKeeper) bgKeeper.pause();
           });
         }
       } catch (err) {
         console.warn('MediaSession action handlers not supported:', err);
       }
 
-      // Prevent iOS WebKit from forcing a video pause when app loses visibility
+      // Keep audio alive when visibility changes
       document.addEventListener('visibilitychange', () => {
-        if (document.hidden && proxyVideo && !proxyVideo.paused) {
-          logPipDebug('App backgrounded — maintaining audio stream playback');
+        if (proxyVideo && !proxyVideo.paused) {
+          logPipDebug('Visibility changed: enforcing background playback');
           setTimeout(() => {
             if (proxyVideo.paused && currentVideoId) {
               proxyVideo.play().catch(e => console.warn('Background resume:', e));
             }
-          }, 100);
+            if (bgKeeper && bgKeeper.paused) {
+              bgKeeper.play().catch(e => console.warn('Keeper resume:', e));
+            }
+          }, 50);
         }
       });
+    }
+
+    function startBackgroundAudioKeeper(streamUrl) {
+      const bgKeeper = document.getElementById('bg-audio-keeper');
+      if (!bgKeeper) return;
+      try {
+        bgKeeper.src = streamUrl;
+        bgKeeper.volume = 0.05; // very low audible volume to maintain active iOS audio session
+        bgKeeper.play().catch(e => console.log('Background keeper auto-play deferred:', e));
+      } catch (err) {
+        console.warn('Background keeper error:', err);
+      }
     }
 
     function updateMediaSessionMetadata(title, channel, thumbnail) {
@@ -1064,6 +1084,7 @@
               });
             }
             startProxyProgressTracking(proxyVideo);
+            startBackgroundAudioKeeper(streamUrl);
             logPipDebug('Proxy stream active & playing.');
           } else {
             throw new Error('No valid MP4 stream found');
@@ -1218,6 +1239,11 @@
         proxyVideo.pause();
         proxyVideo.src = '';
         proxyVideo.style.display = 'none';
+      }
+      const bgKeeper = document.getElementById('bg-audio-keeper');
+      if (bgKeeper) {
+        bgKeeper.pause();
+        bgKeeper.src = '';
       }
       const ytContainer = document.getElementById('youtube-player');
       if (ytContainer) {
