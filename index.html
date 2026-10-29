@@ -673,7 +673,8 @@
       });
 
       video.addEventListener('error', (e) => {
-        logPipDebug(`Video Error code: ${video.error ? video.error.code : 'unknown'}`);
+        const errCode = video.error ? video.error.code : 'unknown';
+        logPipDebug(`Video Error code: ${errCode}`);
       });
     }
 
@@ -682,7 +683,6 @@
       const proxyVideo = document.getElementById('proxy-video-player');
       const bgKeeper = document.getElementById('bg-audio-keeper');
 
-      // Force WebKit AudioSession API type to 'playback'
       try {
         if (navigator.audioSession) {
           navigator.audioSession.type = 'playback';
@@ -710,7 +710,6 @@
         console.warn('MediaSession action handlers warning:', err);
       }
 
-      // Intercept visibility changes and force AudioContext + element resumption
       document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
           if (globalAudioCtx && globalAudioCtx.state === 'suspended') {
@@ -740,7 +739,7 @@
           globalAudioCtx.resume();
         }
         
-        // Connect element stream to destination graph node to lock audio route
+        // Safely attempt graph wiring with try/catch to gracefully skip on strict CORS constraints
         if (!sourceNodeConnected) {
           try {
             const track = globalAudioCtx.createMediaElementSource(videoEl);
@@ -748,7 +747,8 @@
             sourceNodeConnected = true;
             logPipDebug('WebAudio graph routed successfully.');
           } catch (e) {
-            console.warn('MediaElementSource routing notice (already connected):', e);
+            console.warn('WebAudio CORS graph routing skipped, relying on standard element audio session:', e);
+            logPipDebug('Fallback to standard element audio session.');
           }
         }
       }
@@ -1120,7 +1120,7 @@
             proxyVideo.src = streamUrl;
             proxyVideo.currentTime = savedTime;
             
-            // Initialize Web Audio graph context connection
+            // Safely initialize Web Audio graph context connection
             initializePersistentAudioGraph(proxyVideo);
 
             const playPromise = proxyVideo.play();
@@ -1133,7 +1133,7 @@
             }
             startProxyProgressTracking(proxyVideo);
             startBackgroundAudioKeeper(streamUrl);
-            logPipDebug('Proxy stream active & playing with audio graph.');
+            logPipDebug('Proxy stream active & playing.');
           } else {
             throw new Error('No valid MP4 stream found');
           }
