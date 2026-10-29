@@ -1044,7 +1044,7 @@
 
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 8000);
+          const timeoutId = setTimeout(() => controller.abort(), 6000);
 
           const res = await fetch(apiUrl, {
             method: 'GET',
@@ -1060,7 +1060,7 @@
 
           logPipDebug(`API Response status: ${res.status} ${res.statusText}`);
           
-          if (!res.ok) throw new Error(`API returned HTTP ${res.status} (${res.statusText})`);
+          if (!res.ok) throw new Error(`API returned HTTP ${res.status}`);
           
           const data = await res.json();
           let rawStreamUrl = '';
@@ -1075,37 +1075,44 @@
 
           if (rawStreamUrl && proxyVideo) {
             const streamUrl = rawStreamUrl.includes('?') ? `${rawStreamUrl}&local=true` : `${rawStreamUrl}?local=true`;
-            logPipDebug(`Assigning stream URL...`);
-            
-            proxyVideo.src = streamUrl;
-            proxyVideo.currentTime = savedTime;
-            
-            const playPromise = proxyVideo.play();
-            if (playPromise !== undefined) {
-              playPromise.catch(e => {
-                logPipDebug(`Auto-play blocked: ${e.name} - ${e.message}`, true);
-                proxyVideo.muted = true;
-                proxyVideo.play();
-              });
-            }
-            startProxyProgressTracking(proxyVideo);
-            logPipDebug('Stream playing successfully.');
+            assignAndPlayStream(proxyVideo, streamUrl, savedTime);
           } else {
-            throw new Error('No valid streams matched mp4 criteria in JSON response');
+            throw new Error('No valid streams matched mp4 criteria');
           }
         } catch (err) {
-          const errName = err.name || 'Error';
-          const errMessage = err.message || 'Unknown network error';
-          logPipDebug(`[VERBOSE ERROR] Name: ${errName} | Msg: ${errMessage}`, true);
+          logPipDebug(`[API Fetch Blocked] Trying direct Invidious stream fallback...`, true);
           
-          if (pipBtn) pipBtn.style.display = 'none';
-          loadIframePlayer(videoId, savedTime);
+          const directStreamUrl = `${proxyUrl}/latest_version?id=${videoId}&itag=22`;
+          logPipDebug(`Fallback URL: ${directStreamUrl}`);
+          
+          if (proxyVideo) {
+            assignAndPlayStream(proxyVideo, directStreamUrl, savedTime);
+          } else {
+            loadIframePlayer(videoId, savedTime);
+          }
         }
       } else {
         logPipDebug('No proxyUrl configured. Falling back to iframe.');
         if (pipBtn) pipBtn.style.display = 'none';
         loadIframePlayer(videoId, savedTime);
       }
+    }
+
+    function assignAndPlayStream(videoEl, url, savedTime) {
+      logPipDebug('Assigning stream URL to video element...');
+      videoEl.src = url;
+      videoEl.currentTime = savedTime;
+      
+      const playPromise = videoEl.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(e => {
+          logPipDebug(`Auto-play blocked, muting fallback: ${e.message}`, true);
+          videoEl.muted = true;
+          videoEl.play();
+        });
+      }
+      startProxyProgressTracking(videoEl);
+      logPipDebug('Stream playing successfully via proxy.');
     }
 
     function loadIframePlayer(videoId, savedTime) {
