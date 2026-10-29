@@ -568,8 +568,6 @@
     <div class="player-container" id="player-container">
       <div id="youtube-player"></div>
       <video id="proxy-video-player" controls playsinline webkit-playsinline x-webkit-airplay="allow" crossorigin="anonymous" disablepictureinpicture="false"></video>
-      <!-- Silent background keep-alive audio loop -->
-      <audio id="bg-audio-keeper" loop style="display:none;"></audio>
     </div>
     <div class="player-details">
       <h2 id="modal-video-title" style="font-size: 18px; margin-bottom: 8px;"></h2>
@@ -618,10 +616,6 @@
     let currentVideoId = null;
     let progressInterval = null;
     let activeFeedVideos = [];
-    
-    // Web Audio API Persistent Context for Background PWA Audio
-    let globalAudioCtx = null;
-    let sourceNodeConnected = false;
 
     const demoVideos = [
       { id: 'dQw4w9WgXcQ', title: 'Rick Astley - Never Gonna Give You Up', channel: 'Rick Astley', duration: 213, thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg' },
@@ -678,10 +672,9 @@
       });
     }
 
-    /* Native WebKit Audio Session & AudioContext Graph Integration */
+    /* Native WebKit Audio Session & Media Session Handlers */
     function setupBackgroundAudioHandlers() {
       const proxyVideo = document.getElementById('proxy-video-player');
-      const bgKeeper = document.getElementById('bg-audio-keeper');
 
       try {
         if (navigator.audioSession) {
@@ -696,14 +689,9 @@
         if ('mediaSession' in navigator) {
           navigator.mediaSession.setActionHandler('play', () => {
             if (proxyVideo) proxyVideo.play();
-            if (bgKeeper) bgKeeper.play();
-            if (globalAudioCtx && globalAudioCtx.state === 'suspended') {
-              globalAudioCtx.resume();
-            }
           });
           navigator.mediaSession.setActionHandler('pause', () => {
             if (proxyVideo) proxyVideo.pause();
-            if (bgKeeper) bgKeeper.pause();
           });
         }
       } catch (err) {
@@ -712,9 +700,6 @@
 
       document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
-          if (globalAudioCtx && globalAudioCtx.state === 'suspended') {
-            globalAudioCtx.resume().catch(e => console.warn('Ctx resume error:', e));
-          }
           if (proxyVideo && !proxyVideo.paused) {
             setTimeout(() => {
               if (proxyVideo.paused && currentVideoId) {
@@ -724,44 +709,6 @@
           }
         }
       });
-    }
-
-    function initializePersistentAudioGraph(videoEl) {
-      if (!globalAudioCtx) {
-        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-        if (AudioContextClass) {
-          globalAudioCtx = new AudioContextClass();
-        }
-      }
-
-      if (globalAudioCtx) {
-        if (globalAudioCtx.state === 'suspended') {
-          globalAudioCtx.resume();
-        }
-        
-        if (!sourceNodeConnected) {
-          try {
-            const track = globalAudioCtx.createMediaElementSource(videoEl);
-            track.connect(globalAudioCtx.destination);
-            sourceNodeConnected = true;
-            logPipDebug('WebAudio graph routed successfully.');
-          } catch (e) {
-            console.warn('WebAudio routing notice:', e);
-          }
-        }
-      }
-    }
-
-    function startBackgroundAudioKeeper(streamUrl) {
-      const bgKeeper = document.getElementById('bg-audio-keeper');
-      if (!bgKeeper) return;
-      try {
-        bgKeeper.src = streamUrl;
-        bgKeeper.volume = 0.01;
-        bgKeeper.play().catch(e => console.log('Background keeper deferred:', e));
-      } catch (err) {
-        console.warn('Background keeper error:', err);
-      }
     }
 
     function updateMediaSessionMetadata(title, channel, thumbnail) {
@@ -1100,12 +1047,10 @@
         pipBtn.style.display = 'flex';
 
         try {
-          // Appending &local=true forces Invidious API to route through proxy URLs properly
-          const res = await fetch(`${proxyUrl}/api/v1/videos/${videoId}?local=true`);
+          const res = await fetch(`${proxyUrl}/api/v1/videos/${videoId}`);
           const data = await res.json();
           let rawStreamUrl = '';
 
-          // Prefer proxy-ready format streams or adaptive streams
           if (data.formatStreams && data.formatStreams.length > 0) {
             const mp4Stream = data.formatStreams.find(s => s.container === 'mp4' || s.type?.includes('mp4'));
             rawStreamUrl = mp4Stream ? mp4Stream.url : data.formatStreams[0].url;
@@ -1115,15 +1060,11 @@
           }
 
           if (rawStreamUrl) {
-            // Ensure URL has local parameter to prevent direct YouTube fallback blocks
-            const streamUrl = rawStreamUrl.includes('?') ? (rawStreamUrl.includes('local=true') ? rawStreamUrl : `${rawStreamUrl}&local=true`) : `${rawStreamUrl}?local=true`;
+            const streamUrl = rawStreamUrl.includes('?') ? `${rawStreamUrl}&local=true` : `${rawStreamUrl}?local=true`;
             
             proxyVideo.src = streamUrl;
             proxyVideo.currentTime = savedTime;
             
-            // Connect Web Audio graph for background persistence
-            initializePersistentAudioGraph(proxyVideo);
-
             const playPromise = proxyVideo.play();
             if (playPromise !== undefined) {
               playPromise.catch(e => {
@@ -1133,10 +1074,9 @@
               });
             }
             startProxyProgressTracking(proxyVideo);
-            startBackgroundAudioKeeper(streamUrl);
             logPipDebug('Proxied stream active & playing.');
           } else {
-            throw new Error('No valid proxied stream found');
+            throw new Error('No valid proxy stream found');
           }
         } catch (err) {
           logPipDebug(`Proxy error: ${err.message}. Fallback to iframe.`);
@@ -1288,11 +1228,6 @@
         proxyVideo.pause();
         proxyVideo.src = '';
         proxyVideo.style.display = 'none';
-      }
-      const bgKeeper = document.getElementById('bg-audio-keeper');
-      if (bgKeeper) {
-        bgKeeper.pause();
-        bgKeeper.src = '';
       }
       const ytContainer = document.getElementById('youtube-player');
       if (ytContainer) {
