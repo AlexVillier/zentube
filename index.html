@@ -623,41 +623,25 @@
     ];
 
     document.addEventListener('DOMContentLoaded', () => {
-      // Isolated initialization blocks ensure core UI rendering never halts
       try {
         const clientInput = document.getElementById('client-id-input');
         const proxyInput = document.getElementById('proxy-url-input');
         if (clientInput) clientInput.value = clientId;
         if (proxyInput) proxyInput.value = proxyUrl;
-      } catch (e) {
-        console.error('Input binding error:', e);
-      }
+      } catch (e) {}
 
-      try {
-        renderFeed(demoVideos, 'video-grid');
-      } catch (e) {
-        console.error('Feed render error:', e);
-      }
-
-      try {
-        setupVideoPipEventListeners();
-      } catch (e) {
-        console.error('PiP listeners error:', e);
-      }
-
-      try {
-        setupBackgroundAudioHandlers();
-      } catch (e) {
-        console.error('Audio handlers error:', e);
-      }
+      try { renderFeed(demoVideos, 'video-grid'); } catch (e) {}
+      try { setupVideoPipEventListeners(); } catch (e) {}
+      // Deferred audio session initialization to prevent fetch blocking
+      setTimeout(() => {
+        try { setupBackgroundAudioHandlers(); } catch (e) {}
+      }, 1000);
 
       try {
         if (window.google && window.google.accounts) {
           initGoogleAuth();
         }
-      } catch (e) {
-        console.error('Google auth init error:', e);
-      }
+      } catch (e) {}
     });
 
     function logPipDebug(msg, isError = false) {
@@ -689,23 +673,18 @@
 
       video.addEventListener('error', (e) => {
         const errCode = video.error ? video.error.code : 'unknown';
-        const errMessage = video.error ? video.error.message : 'no message';
-        logPipDebug(`Video Error code: ${errCode} | msg: ${errMessage}`, true);
+        logPipDebug(`Video Error code: ${errCode}`, true);
       });
     }
 
-    /* Native WebKit Audio Session & Media Session Handlers */
     function setupBackgroundAudioHandlers() {
       const proxyVideo = document.getElementById('proxy-video-player');
 
       try {
         if (navigator.audioSession) {
           navigator.audioSession.type = 'playback';
-          logPipDebug('AudioSession set to playback.');
         }
-      } catch (e) {
-        console.warn('AudioSession API not exposed:', e);
-      }
+      } catch (e) {}
 
       try {
         if ('mediaSession' in navigator) {
@@ -716,16 +695,14 @@
             if (proxyVideo) proxyVideo.pause();
           });
         }
-      } catch (err) {
-        console.warn('MediaSession action handlers warning:', err);
-      }
+      } catch (err) {}
 
       document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
           if (proxyVideo && !proxyVideo.paused) {
             setTimeout(() => {
               if (proxyVideo.paused && currentVideoId) {
-                proxyVideo.play().catch(err => console.warn('Visibility resume fallback:', err));
+                proxyVideo.play().catch(err => {});
               }
             }, 50);
           }
@@ -745,9 +722,7 @@
             ]
           });
         }
-      } catch (err) {
-        console.warn('MediaMetadata not supported:', err);
-      }
+      } catch (err) {}
     }
 
     function onGisLibraryLoad() {
@@ -787,9 +762,7 @@
               if (tokenClient) tokenClient.requestAccessToken({ prompt: 'none' });
             });
         }
-      } catch (err) {
-        console.warn('Google Auth init warning:', err);
-      }
+      } catch (err) {}
     }
 
     function handleAuthClick() {
@@ -896,9 +869,7 @@
                 });
               }
             }
-          } catch (innerErr) {
-            console.warn('Skipping channel:', innerErr);
-          }
+          } catch (innerErr) {}
         }
 
         allVideos.sort((a, b) => b.publishedAt - a.publishedAt);
@@ -916,9 +887,6 @@
         }
 
       } catch (err) {
-        console.error('Error fetching subscriptions feed:', err);
-        const syncStatus = document.getElementById('sync-status');
-        if (syncStatus) syncStatus.textContent = 'Sync Error';
         renderFeed(demoVideos, 'video-grid');
       }
     }
@@ -1004,7 +972,7 @@
           renderFeed(results, 'search-grid');
         }
       } catch (err) {
-        grid.innerHTML = '<p style="color: var(--text-secondary);">Search failed. Verify connection or OAuth configuration.</p>';
+        grid.innerHTML = '<p style="color: var(--text-secondary);">Search failed.</p>';
       }
     }
 
@@ -1054,12 +1022,9 @@
         modal.classList.add('active');
       }
 
-      const titleEl = document.getElementById('player-title');
-      const modalTitleEl = document.getElementById('modal-video-title');
-      const modalChanEl = document.getElementById('modal-channel-title');
-      if (titleEl) titleEl.textContent = title;
-      if (modalTitleEl) modalTitleEl.textContent = title;
-      if (modalChanEl) modalChanEl.textContent = channel;
+      document.getElementById('player-title').textContent = title;
+      document.getElementById('modal-video-title').textContent = title;
+      document.getElementById('modal-channel-title').textContent = channel;
       
       const debugBox = document.getElementById('pip-debug-box');
       if (debugBox) debugBox.innerHTML = `[Trace] Opening player for ${videoId}...`;
@@ -1082,36 +1047,26 @@
           const res = await fetch(apiUrl, {
             method: 'GET',
             mode: 'cors',
-            headers: {
-              'Accept': 'application/json'
-            }
+            headers: { 'Accept': 'application/json' }
           });
-          logPipDebug(`API Response status: ${res.status} ${res.statusText}`);
+          logPipDebug(`API Response status: ${res.status}`);
           
-          if (!res.ok) {
-            throw new Error(`API returned HTTP ${res.status}`);
-          }
+          if (!res.ok) throw new Error(`API returned HTTP ${res.status}`);
           
           const data = await res.json();
-          logPipDebug(`API JSON parsed successfully.`);
-
           let rawStreamUrl = '';
 
           if (data.formatStreams && data.formatStreams.length > 0) {
             const mp4Stream = data.formatStreams.find(s => s.container === 'mp4' || s.type?.includes('mp4'));
             rawStreamUrl = mp4Stream ? mp4Stream.url : data.formatStreams[0].url;
-            logPipDebug(`Found formatStreams. Count: ${data.formatStreams.length}`);
           } else if (data.adaptiveFormats && data.adaptiveFormats.length > 0) {
             const mp4Adaptive = data.adaptiveFormats.find(f => f.container === 'mp4' && f.type?.includes('video'));
             if (mp4Adaptive) rawStreamUrl = mp4Adaptive.url;
-            logPipDebug(`Found adaptiveFormats. Count: ${data.adaptiveFormats.length}`);
-          } else {
-            logPipDebug(`Warning: No streams found in JSON payload.`, true);
           }
 
           if (rawStreamUrl && proxyVideo) {
             const streamUrl = rawStreamUrl.includes('?') ? `${rawStreamUrl}&local=true` : `${rawStreamUrl}?local=true`;
-            logPipDebug(`Assigning stream URL to video element...`);
+            logPipDebug(`Assigning stream URL...`);
             
             proxyVideo.src = streamUrl;
             proxyVideo.currentTime = savedTime;
@@ -1119,19 +1074,17 @@
             const playPromise = proxyVideo.play();
             if (playPromise !== undefined) {
               playPromise.catch(e => {
-                logPipDebug(`Auto-play blocked/muted: ${e.message}`, true);
                 proxyVideo.muted = true;
                 proxyVideo.play();
               });
             }
             startProxyProgressTracking(proxyVideo);
-            logPipDebug('Stream element source assigned successfully.');
+            logPipDebug('Stream playing successfully.');
           } else {
-            throw new Error('No valid streams matched mp4 criteria');
+            throw new Error('No valid streams matched criteria');
           }
         } catch (err) {
           logPipDebug(`Proxy Error Caught: ${err.message}`, true);
-          console.error('Proxy failure details:', err);
           if (pipBtn) pipBtn.style.display = 'none';
           loadIframePlayer(videoId, savedTime);
         }
@@ -1176,43 +1129,26 @@
 
     function triggerSystemPip() {
       const proxyVideo = document.getElementById('proxy-video-player');
-      if (!proxyVideo) {
-        logPipDebug('Error: #proxy-video-player not found in DOM.', true);
-        return;
-      }
-
-      logPipDebug(`Triggering PiP... paused=${proxyVideo.paused}, readyState=${proxyVideo.readyState}`);
+      if (!proxyVideo) return;
 
       try {
         proxyVideo.style.display = 'block';
-
-        if (proxyVideo.paused) {
-          proxyVideo.play();
-        }
+        if (proxyVideo.paused) proxyVideo.play();
 
         if (typeof proxyVideo.webkitSetPresentationMode === 'function') {
           const currentMode = proxyVideo.webkitPresentationMode;
-          logPipDebug(`webkitMode current: ${currentMode}`);
           const targetMode = (currentMode === 'picture-in-picture') ? 'inline' : 'picture-in-picture';
           proxyVideo.webkitSetPresentationMode(targetMode);
-          logPipDebug(`Requested webkitMode: ${targetMode}`);
           return;
         }
 
         if (document.pictureInPictureElement) {
           document.exitPictureInPicture();
-          logPipDebug('Exited W3C PiP.');
         } else if (document.pictureInPictureEnabled && typeof proxyVideo.requestPictureInPicture === 'function') {
           proxyVideo.requestPictureInPicture();
-          logPipDebug('Requested W3C PiP.');
-        } else {
-          logPipDebug('Error: Neither webkitSetPresentationMode nor W3C PiP available.', true);
-          alert('Picture-in-Picture is not supported by your current browser environment.');
         }
       } catch (err) {
         logPipDebug(`PiP Exception: ${err.message}`, true);
-        console.error('PiP Activation Error:', err);
-        alert(`Could not start PiP: ${err.message}`);
       }
     }
 
