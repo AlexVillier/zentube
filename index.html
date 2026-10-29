@@ -567,7 +567,7 @@
     </div>
     <div class="player-container" id="player-container">
       <div id="youtube-player"></div>
-      <video id="proxy-video-player" controls playsinline webkit-playsinline x-webkit-airplay="allow" disablepictureinpicture="false"></video>
+      <video id="proxy-video-player" controls playsinline webkit-playsinline x-webkit-airplay="allow" crossorigin="anonymous" disablepictureinpicture="false"></video>
       <!-- Silent background keep-alive audio loop -->
       <audio id="bg-audio-keeper" loop style="display:none;"></audio>
     </div>
@@ -618,6 +618,10 @@
     let currentVideoId = null;
     let progressInterval = null;
     let activeFeedVideos = [];
+    
+    // Web Audio API Persistent Context for iOS PWA background audio lock
+    let globalAudioCtx = null;
+    let sourceNodeConnected = false;
 
     const demoVideos = [
       { id: 'dQw4w9WgXcQ', title: 'Rick Astley - Never Gonna Give You Up', channel: 'Rick Astley', duration: 213, thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg' },
@@ -674,7 +678,7 @@
       });
     }
 
-    /* Native WebKit Audio Session & Background Audio Preservation */
+    /* Native WebKit Audio Session & AudioContext Graph Integration */
     function setupBackgroundAudioHandlers() {
       const proxyVideo = document.getElementById('proxy-video-player');
       const bgKeeper = document.getElementById('bg-audio-keeper');
@@ -693,6 +697,9 @@
           navigator.mediaSession.setActionHandler('play', () => {
             if (proxyVideo) proxyVideo.play();
             if (bgKeeper) bgKeeper.play();
+            if (globalAudioCtx && globalAudioCtx.state === 'suspended') {
+              globalAudioCtx.resume();
+            }
           });
           navigator.mediaSession.setActionHandler('pause', () => {
             if (proxyVideo) proxyVideo.pause();
@@ -705,6 +712,9 @@
 
       document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
+          if (globalAudioCtx && globalAudioCtx.state === 'suspended') {
+            globalAudioCtx.resume().catch(e => console.warn('Ctx resume error:', e));
+          }
           if (proxyVideo && !proxyVideo.paused) {
             setTimeout(() => {
               if (proxyVideo.paused && currentVideoId) {
@@ -714,6 +724,32 @@
           }
         }
       });
+    }
+
+    function initializePersistentAudioGraph(videoEl) {
+      if (!globalAudioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          globalAudioCtx = new AudioContextClass();
+        }
+      }
+
+      if (globalAudioCtx) {
+        if (globalAudioCtx.state === 'suspended') {
+          globalAudioCtx.resume();
+        }
+        
+        if (!sourceNodeConnected) {
+          try {
+            const track = globalAudioCtx.createMediaElementSource(videoEl);
+            track.connect(globalAudioCtx.destination);
+            sourceNodeConnected = true;
+            logPipDebug('WebAudio graph routed successfully.');
+          } catch (e) {
+            console.warn('WebAudio routing notice:', e);
+          }
+        }
+      }
     }
 
     function startBackgroundAudioKeeper(streamUrl) {
@@ -1082,6 +1118,9 @@
             proxyVideo.src = streamUrl;
             proxyVideo.currentTime = savedTime;
             
+            // Initialize Web Audio graph connection now that CORS headers are present
+            initializePersistentAudioGraph(proxyVideo);
+
             const playPromise = proxyVideo.play();
             if (playPromise !== undefined) {
               playPromise.catch(e => {
@@ -1092,7 +1131,7 @@
             }
             startProxyProgressTracking(proxyVideo);
             startBackgroundAudioKeeper(streamUrl);
-            logPipDebug('Proxy stream active & playing.');
+            logPipDebug('Proxy stream active & playing with WebAudio graph.');
           } else {
             throw new Error('No valid MP4 stream found');
           }
