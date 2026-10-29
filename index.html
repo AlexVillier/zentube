@@ -623,21 +623,40 @@
     ];
 
     document.addEventListener('DOMContentLoaded', () => {
+      // Isolated initialization blocks ensure core UI rendering never halts
       try {
         const clientInput = document.getElementById('client-id-input');
         const proxyInput = document.getElementById('proxy-url-input');
         if (clientInput) clientInput.value = clientId;
         if (proxyInput) proxyInput.value = proxyUrl;
+      } catch (e) {
+        console.error('Input binding error:', e);
+      }
 
+      try {
         renderFeed(demoVideos, 'video-grid');
-        setupVideoPipEventListeners();
-        setupBackgroundAudioHandlers();
+      } catch (e) {
+        console.error('Feed render error:', e);
+      }
 
+      try {
+        setupVideoPipEventListeners();
+      } catch (e) {
+        console.error('PiP listeners error:', e);
+      }
+
+      try {
+        setupBackgroundAudioHandlers();
+      } catch (e) {
+        console.error('Audio handlers error:', e);
+      }
+
+      try {
         if (window.google && window.google.accounts) {
           initGoogleAuth();
         }
       } catch (e) {
-        console.error('DOM init error:', e);
+        console.error('Google auth init error:', e);
       }
     });
 
@@ -646,7 +665,7 @@
       if (box) {
         const timestamp = new Date().toLocaleTimeString();
         const color = isError ? '#ff453a' : '#30d158';
-        box.innerHTML += `<br><span style="color: ${color}">[${timestamp}]${msg}</span>`;
+        box.innerHTML += `<br><span style="color: ${color}">[${timestamp}] ${msg}</span>`;
         box.scrollTop = box.scrollHeight;
       }
       console.log('Debug Log:', msg);
@@ -671,7 +690,7 @@
       video.addEventListener('error', (e) => {
         const errCode = video.error ? video.error.code : 'unknown';
         const errMessage = video.error ? video.error.message : 'no message';
-        logPipDebug(`Video Error code: ${errCode} \vert{} msg:${errMessage}`, true);
+        logPipDebug(`Video Error code: ${errCode} | msg: ${errMessage}`, true);
       });
     }
 
@@ -755,7 +774,91 @@
         });
 
         if (accessToken) {
-          fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${accessToken}`) .then(res => { if (res.ok) { updateAuthUI(true); fetchSubscribedChannelsFeed(); } else if (tokenClient) { tokenClient.requestAccessToken({ prompt: 'none' }); } }) .catch(() => { if (tokenClient) tokenClient.requestAccessToken({ prompt: 'none' }); }); } } catch (err) { console.warn('Google Auth init warning:', err); } }  function handleAuthClick() { if (accessToken) { accessToken = null; localStorage.removeItem('zentube_token'); updateAuthUI(false); renderFeed(demoVideos, 'video-grid'); } else if (tokenClient) { tokenClient.requestAccessToken({ prompt: '' }); } else { alert('Please save your OAuth Client ID in Settings first.'); switchTab('settings-view', document.querySelector('.nav-item:nth-child(4)')); } }  function updateAuthUI(isSignedIn) { const btn = document.getElementById('auth-btn'); const status = document.getElementById('sync-status'); if (!btn \vert{}\vert{} !status) return;  if (isSignedIn) { btn.innerHTML = '<span>Sign Out</span>'; status.textContent = 'Synced with Subscriptions'; status.style.color = 'var(--success-color)'; } else { btn.innerHTML = '<span>Sign In</span>'; status.textContent = 'Demo Mode'; status.style.color = 'var(--text-secondary)'; } }  function saveClientId() { const input = document.getElementById('client-id-input'); if (!input) return; const val = input.value.trim(); if (val) { clientId = val; localStorage.setItem('zentube_client_id', clientId); initGoogleAuth(); alert('Client ID Saved!'); } }  function saveProxyUrl() { const input = document.getElementById('proxy-url-input'); if (!input) return; const val = input.value.trim().replace(/\/$/, ''); proxyUrl = val; localStorage.setItem('zentube_proxy_url', proxyUrl); alert('Proxy URL Saved!'); }  function manualRefreshFeed() { if (accessToken) { fetchSubscribedChannelsFeed(); } else { renderFeed(demoVideos, 'video-grid'); } }  async function fetchSubscribedChannelsFeed() { if (!accessToken) return; try { const syncStatus = document.getElementById('sync-status'); if (syncStatus) syncStatus.textContent = 'Updating Feed...';  const subRes = await fetch('https://www.googleapis.com/youtube/v3/subscriptions?mine=true&part=snippet,contentDetails&maxResults=15', { headers: { Authorization: `Bearer ${accessToken}` }
+          fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${accessToken}`)
+            .then(res => {
+              if (res.ok) {
+                updateAuthUI(true);
+                fetchSubscribedChannelsFeed();
+              } else if (tokenClient) {
+                tokenClient.requestAccessToken({ prompt: 'none' });
+              }
+            })
+            .catch(() => {
+              if (tokenClient) tokenClient.requestAccessToken({ prompt: 'none' });
+            });
+        }
+      } catch (err) {
+        console.warn('Google Auth init warning:', err);
+      }
+    }
+
+    function handleAuthClick() {
+      if (accessToken) {
+        accessToken = null;
+        localStorage.removeItem('zentube_token');
+        updateAuthUI(false);
+        renderFeed(demoVideos, 'video-grid');
+      } else if (tokenClient) {
+        tokenClient.requestAccessToken({ prompt: '' });
+      } else {
+        alert('Please save your OAuth Client ID in Settings first.');
+        switchTab('settings-view', document.querySelector('.nav-item:nth-child(4)'));
+      }
+    }
+
+    function updateAuthUI(isSignedIn) {
+      const btn = document.getElementById('auth-btn');
+      const status = document.getElementById('sync-status');
+      if (!btn || !status) return;
+
+      if (isSignedIn) {
+        btn.innerHTML = '<span>Sign Out</span>';
+        status.textContent = 'Synced with Subscriptions';
+        status.style.color = 'var(--success-color)';
+      } else {
+        btn.innerHTML = '<span>Sign In</span>';
+        status.textContent = 'Demo Mode';
+        status.style.color = 'var(--text-secondary)';
+      }
+    }
+
+    function saveClientId() {
+      const input = document.getElementById('client-id-input');
+      if (!input) return;
+      const val = input.value.trim();
+      if (val) {
+        clientId = val;
+        localStorage.setItem('zentube_client_id', clientId);
+        initGoogleAuth();
+        alert('Client ID Saved!');
+      }
+    }
+
+    function saveProxyUrl() {
+      const input = document.getElementById('proxy-url-input');
+      if (!input) return;
+      const val = input.value.trim().replace(/\/$/, '');
+      proxyUrl = val;
+      localStorage.setItem('zentube_proxy_url', proxyUrl);
+      alert('Proxy URL Saved!');
+    }
+
+    function manualRefreshFeed() {
+      if (accessToken) {
+        fetchSubscribedChannelsFeed();
+      } else {
+        renderFeed(demoVideos, 'video-grid');
+      }
+    }
+
+    async function fetchSubscribedChannelsFeed() {
+      if (!accessToken) return;
+      try {
+        const syncStatus = document.getElementById('sync-status');
+        if (syncStatus) syncStatus.textContent = 'Updating Feed...';
+        
+        const subRes = await fetch('https://www.googleapis.com/youtube/v3/subscriptions?mine=true&part=snippet,contentDetails&maxResults=15', {
+          headers: { Authorization: `Bearer ${accessToken}` }
         });
         const subData = await subRes.json();
 
@@ -768,14 +871,16 @@
         for (const sub of subData.items) {
           try {
             const channelId = sub.snippet.resourceId.channelId;
-            const channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?id=${channelId}&part=contentDetails`, { headers: { Authorization: `Bearer ${accessToken}` }
+            const channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?id=${channelId}&part=contentDetails`, {
+              headers: { Authorization: `Bearer ${accessToken}` }
             });
             const channelData = await channelRes.json();
 
             if (channelData.items && channelData.items.length > 0) {
               const uploadsPlaylistId = channelData.items[0].contentDetails.relatedPlaylists.uploads;
 
-              const playlistRes = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?playlistId=${uploadsPlaylistId}&part=snippet&maxResults=3`, { headers: { Authorization: `Bearer ${accessToken}` }
+              const playlistRes = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?playlistId=${uploadsPlaylistId}&part=snippet&maxResults=3`, {
+                headers: { Authorization: `Bearer ${accessToken}` }
               });
               const playlistData = await playlistRes.json();
 
@@ -847,13 +952,15 @@
       document.getElementById('channel-detail-view').classList.add('active');
 
       try {
-        const channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?id=${channelId}&part=contentDetails`, { headers: { Authorization: `Bearer ${accessToken}` }
+        const channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?id=${channelId}&part=contentDetails`, {
+          headers: { Authorization: `Bearer ${accessToken}` }
         });
         const channelData = await channelRes.json();
 
         if (channelData.items && channelData.items.length > 0) {
           const uploadsPlaylistId = channelData.items[0].contentDetails.relatedPlaylists.uploads;
-          const playlistRes = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?playlistId=${uploadsPlaylistId}&part=snippet&maxResults=15`, { headers: { Authorization: `Bearer ${accessToken}` }
+          const playlistRes = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?playlistId=${uploadsPlaylistId}&part=snippet&maxResults=15`, {
+            headers: { Authorization: `Bearer ${accessToken}` }
           });
           const playlistData = await playlistRes.json();
 
@@ -883,7 +990,8 @@
       grid.innerHTML = '<p style="color: var(--text-secondary);">Searching...</p>';
 
       try {
-        const res = await fetch(`https://www.googleapis.com/youtube/v3/search?q=${encodeURIComponent(query)}&part=snippet&type=video&maxResults=12`, { headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+        const res = await fetch(`https://www.googleapis.com/youtube/v3/search?q=${encodeURIComponent(query)}&part=snippet&type=video&maxResults=12`, {
+          headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
         });
         const data = await res.json();
         if (data.items) {
@@ -900,7 +1008,7 @@
       }
     }
 
-    function renderFeed(videos, containerId) {
+    function renderFeed(videos, containerId = 'video-grid') {
       const grid = document.getElementById(containerId);
       if (!grid) return;
       
@@ -915,4 +1023,305 @@
         if (percent >= 90) {
           badgeHTML = `<div class="watch-badge completed">✓ Watched</div>`;
         } else if (percent > 5) {
-          badgeHTML = `<div class="
+          badgeHTML = `<div class="watch-badge in-progress">${percent}%</div>`;
+        }
+
+        const card = document.createElement('div');
+        card.className = 'video-card';
+        card.onclick = () => openPlayer(v.id, v.title, v.channel, v.thumbnail);
+        card.innerHTML = `
+          <div class="thumbnail-wrapper">
+            <img class="thumbnail-img" src="${v.thumbnail}" alt="${v.title}" />
+            ${badgeHTML}
+            ${percent > 0 && percent < 90 ? `<div class="progress-bar-container"><div class="progress-bar-fill" style="width: ${percent}%;"></div></div>` : ''}
+          </div>
+          <div class="video-info">
+            <div class="video-title">${v.title}</div>
+            <div class="video-meta">${v.channel}</div>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    async function openPlayer(videoId, title, channel, thumbnail = '') {
+      currentVideoId = videoId;
+      const modal = document.getElementById('player-modal');
+      const pipBtn = document.getElementById('pip-btn');
+      
+      if (modal) {
+        modal.classList.remove('docked');
+        modal.classList.add('active');
+      }
+
+      const titleEl = document.getElementById('player-title');
+      const modalTitleEl = document.getElementById('modal-video-title');
+      const modalChanEl = document.getElementById('modal-channel-title');
+      if (titleEl) titleEl.textContent = title;
+      if (modalTitleEl) modalTitleEl.textContent = title;
+      if (modalChanEl) modalChanEl.textContent = channel;
+      
+      const debugBox = document.getElementById('pip-debug-box');
+      if (debugBox) debugBox.innerHTML = `[Trace] Opening player for ${videoId}...`;
+
+      updateMediaSessionMetadata(title, channel, thumbnail || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`);
+
+      const savedTime = watchProgress[videoId] ? watchProgress[videoId].currentTime : 0;
+      const ytContainer = document.getElementById('youtube-player');
+      const proxyVideo = document.getElementById('proxy-video-player');
+
+      if (proxyUrl) {
+        if (ytContainer) ytContainer.style.display = 'none';
+        if (proxyVideo) proxyVideo.style.display = 'block';
+        if (pipBtn) pipBtn.style.display = 'flex';
+
+        const apiUrl = `${proxyUrl}/api/v1/videos/${videoId}`;
+        logPipDebug(`Fetching API: ${apiUrl}`);
+
+        try {
+          const res = await fetch(apiUrl, {
+            method: 'GET',
+            mode: 'cors',
+            headers: {
+              'Accept': 'application/json'
+            }
+          });
+          logPipDebug(`API Response status: ${res.status} ${res.statusText}`);
+          
+          if (!res.ok) {
+            throw new Error(`API returned HTTP ${res.status}`);
+          }
+          
+          const data = await res.json();
+          logPipDebug(`API JSON parsed successfully.`);
+
+          let rawStreamUrl = '';
+
+          if (data.formatStreams && data.formatStreams.length > 0) {
+            const mp4Stream = data.formatStreams.find(s => s.container === 'mp4' || s.type?.includes('mp4'));
+            rawStreamUrl = mp4Stream ? mp4Stream.url : data.formatStreams[0].url;
+            logPipDebug(`Found formatStreams. Count: ${data.formatStreams.length}`);
+          } else if (data.adaptiveFormats && data.adaptiveFormats.length > 0) {
+            const mp4Adaptive = data.adaptiveFormats.find(f => f.container === 'mp4' && f.type?.includes('video'));
+            if (mp4Adaptive) rawStreamUrl = mp4Adaptive.url;
+            logPipDebug(`Found adaptiveFormats. Count: ${data.adaptiveFormats.length}`);
+          } else {
+            logPipDebug(`Warning: No streams found in JSON payload.`, true);
+          }
+
+          if (rawStreamUrl && proxyVideo) {
+            const streamUrl = rawStreamUrl.includes('?') ? `${rawStreamUrl}&local=true` : `${rawStreamUrl}?local=true`;
+            logPipDebug(`Assigning stream URL to video element...`);
+            
+            proxyVideo.src = streamUrl;
+            proxyVideo.currentTime = savedTime;
+            
+            const playPromise = proxyVideo.play();
+            if (playPromise !== undefined) {
+              playPromise.catch(e => {
+                logPipDebug(`Auto-play blocked/muted: ${e.message}`, true);
+                proxyVideo.muted = true;
+                proxyVideo.play();
+              });
+            }
+            startProxyProgressTracking(proxyVideo);
+            logPipDebug('Stream element source assigned successfully.');
+          } else {
+            throw new Error('No valid streams matched mp4 criteria');
+          }
+        } catch (err) {
+          logPipDebug(`Proxy Error Caught: ${err.message}`, true);
+          console.error('Proxy failure details:', err);
+          if (pipBtn) pipBtn.style.display = 'none';
+          loadIframePlayer(videoId, savedTime);
+        }
+      } else {
+        logPipDebug('No proxyUrl configured. Falling back to iframe.');
+        if (pipBtn) pipBtn.style.display = 'none';
+        loadIframePlayer(videoId, savedTime);
+      }
+    }
+
+    function loadIframePlayer(videoId, savedTime) {
+      logPipDebug(`Loading YouTube Iframe for ID: ${videoId}`);
+      const ytContainer = document.getElementById('youtube-player');
+      const proxyVideo = document.getElementById('proxy-video-player');
+      if (proxyVideo) proxyVideo.style.display = 'none';
+      if (ytContainer) ytContainer.style.display = 'block';
+
+      if (typeof YT !== 'undefined' && YT.Player) {
+        if (!ytPlayer || typeof ytPlayer.loadVideoById !== 'function') {
+          if (ytContainer) ytContainer.innerHTML = '';
+          ytPlayer = new YT.Player('youtube-player', {
+            videoId: videoId,
+            playerVars: {
+              autoplay: 1,
+              start: Math.floor(savedTime),
+              playsinline: 1,
+              modestbranding: 1
+            },
+            events: {
+              'onStateChange': onPlayerStateChange
+            }
+          });
+        } else {
+          ytPlayer.loadVideoById({ videoId: videoId, startSeconds: Math.floor(savedTime) });
+        }
+      } else if (ytContainer) {
+        ytContainer.innerHTML = `<iframe width="100%" height="100%" src="https://www.youtube.com/embed/${videoId}?autoplay=1&playsinline=1&start=${Math.floor(savedTime)}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
+      }
+
+      startIframeProgressTracking();
+    }
+
+    function triggerSystemPip() {
+      const proxyVideo = document.getElementById('proxy-video-player');
+      if (!proxyVideo) {
+        logPipDebug('Error: #proxy-video-player not found in DOM.', true);
+        return;
+      }
+
+      logPipDebug(`Triggering PiP... paused=${proxyVideo.paused}, readyState=${proxyVideo.readyState}`);
+
+      try {
+        proxyVideo.style.display = 'block';
+
+        if (proxyVideo.paused) {
+          proxyVideo.play();
+        }
+
+        if (typeof proxyVideo.webkitSetPresentationMode === 'function') {
+          const currentMode = proxyVideo.webkitPresentationMode;
+          logPipDebug(`webkitMode current: ${currentMode}`);
+          const targetMode = (currentMode === 'picture-in-picture') ? 'inline' : 'picture-in-picture';
+          proxyVideo.webkitSetPresentationMode(targetMode);
+          logPipDebug(`Requested webkitMode: ${targetMode}`);
+          return;
+        }
+
+        if (document.pictureInPictureElement) {
+          document.exitPictureInPicture();
+          logPipDebug('Exited W3C PiP.');
+        } else if (document.pictureInPictureEnabled && typeof proxyVideo.requestPictureInPicture === 'function') {
+          proxyVideo.requestPictureInPicture();
+          logPipDebug('Requested W3C PiP.');
+        } else {
+          logPipDebug('Error: Neither webkitSetPresentationMode nor W3C PiP available.', true);
+          alert('Picture-in-Picture is not supported by your current browser environment.');
+        }
+      } catch (err) {
+        logPipDebug(`PiP Exception: ${err.message}`, true);
+        console.error('PiP Activation Error:', err);
+        alert(`Could not start PiP: ${err.message}`);
+      }
+    }
+
+    function onPlayerStateChange(event) {
+      if (typeof YT !== 'undefined' && event.data === YT.PlayerState.PLAYING) {
+        startIframeProgressTracking();
+      } else if (typeof YT !== 'undefined' && event.data === YT.PlayerState.ENDED) {
+        stopProgressTracking();
+        if (currentVideoId && ytPlayer && ytPlayer.getDuration) {
+          const duration = ytPlayer.getDuration();
+          watchProgress[currentVideoId] = { currentTime: duration, duration: duration, updatedAt: Date.now() };
+          localStorage.setItem('zentube_watch_progress', JSON.stringify(watchProgress));
+          updateCurrentFeedUI();
+        }
+      } else {
+        stopProgressTracking();
+      }
+    }
+
+    function startIframeProgressTracking() {
+      stopProgressTracking();
+      progressInterval = setInterval(() => {
+        if (ytPlayer && ytPlayer.getCurrentTime && currentVideoId) {
+          const currentTime = ytPlayer.getCurrentTime();
+          const duration = ytPlayer.getDuration();
+          if (duration > 0) {
+            watchProgress[currentVideoId] = { currentTime, duration, updatedAt: Date.now() };
+            localStorage.setItem('zentube_watch_progress', JSON.stringify(watchProgress));
+            updateCurrentFeedUI();
+          }
+        }
+      }, 3000);
+    }
+
+    function startProxyProgressTracking(videoEl) {
+      stopProgressTracking();
+      progressInterval = setInterval(() => {
+        if (videoEl && currentVideoId) {
+          const currentTime = videoEl.currentTime;
+          const duration = videoEl.duration;
+          if (duration > 0) {
+            watchProgress[currentVideoId] = { currentTime, duration, updatedAt: Date.now() };
+            localStorage.setItem('zentube_watch_progress', JSON.stringify(watchProgress));
+            if (currentTime >= duration - 1) {
+              updateCurrentFeedUI();
+            }
+          }
+        }
+      }, 3000);
+    }
+
+    function stopProgressTracking() {
+      if (progressInterval) clearInterval(progressInterval);
+    }
+
+    function updateCurrentFeedUI() {
+      if (activeFeedVideos.length > 0) {
+        renderFeed(activeFeedVideos, 'video-grid');
+      } else {
+        renderFeed(demoVideos, 'video-grid');
+      }
+    }
+
+    function closePlayer() {
+      stopProgressTracking();
+      if (ytPlayer && typeof ytPlayer.stopVideo === 'function') ytPlayer.stopVideo();
+      const proxyVideo = document.getElementById('proxy-video-player');
+      if (proxyVideo) {
+        proxyVideo.pause();
+        proxyVideo.src = '';
+        proxyVideo.style.display = 'none';
+      }
+      const ytContainer = document.getElementById('youtube-player');
+      if (ytContainer) {
+        ytContainer.style.display = 'none';
+        ytContainer.innerHTML = '';
+        ytPlayer = null;
+      }
+      
+      const modal = document.getElementById('player-modal');
+      if (modal) modal.classList.remove('active', 'docked');
+      updateCurrentFeedUI();
+    }
+
+    function toggleDockPlayer() {
+      const modal = document.getElementById('player-modal');
+      if (modal) modal.classList.toggle('docked');
+    }
+
+    function clearWatchHistory() {
+      if (confirm('Clear all local watch progress data?')) {
+        watchProgress = {};
+        localStorage.removeItem('zentube_watch_progress');
+        updateCurrentFeedUI();
+      }
+    }
+
+    function switchTab(viewId, el) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      
+      const target = document.getElementById(viewId);
+      if (target) target.classList.add('active');
+
+      const navItem = el ? el.closest('.nav-item') : null;
+      if (navItem) {
+        navItem.classList.add('active');
+      }
+    }
+  </script>
+</body>
+</html>
