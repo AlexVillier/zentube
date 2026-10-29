@@ -575,9 +575,9 @@
       <div style="padding: 12px; background: var(--bg-surface); border-radius: 12px; border: 1px solid var(--border-color); font-size: 13px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 12px;" id="modal-description">
         System Picture-in-Picture is active when playing videos via direct proxy stream. Tap the highlighted PiP icon above or leave Safari when video is playing.
       </div>
-      <!-- Live PiP & Error Debug Box -->
-      <div style="padding: 10px; background: #000; border-radius: 8px; border: 1px solid var(--accent-color); font-family: monospace; font-size: 11px; color: #ff453a; line-height: 1.3;" id="pip-debug-box">
-        Debug Log: Ready
+      <!-- Verbose Live Debug Box -->
+      <div style="padding: 10px; background: #000; border-radius: 8px; border: 1px solid var(--accent-color); font-family: monospace; font-size: 11px; color: #30d158; line-height: 1.3; max-height: 140px; overflow-y: auto;" id="pip-debug-box">
+        [Trace] Ready. Tap a video to inspect fetch flow.
       </div>
     </div>
   </div>
@@ -645,8 +645,9 @@
       const box = document.getElementById('pip-debug-box');
       if (box) {
         const timestamp = new Date().toLocaleTimeString();
-        box.style.color = isError ? '#ff453a' : '#30d158';
-        box.innerHTML = `[${timestamp}] ${msg}`;
+        const color = isError ? '#ff453a' : '#30d158';
+        box.innerHTML += `<br><span style="color: ${color}">[${timestamp}] ${msg}</span>`;
+        box.scrollTop = box.scrollHeight;
       }
       console.log('Debug Log:', msg);
     }
@@ -669,7 +670,8 @@
 
       video.addEventListener('error', (e) => {
         const errCode = video.error ? video.error.code : 'unknown';
-        logPipDebug(`Video Element Error code: ${errCode}`, true);
+        const errMessage = video.error ? video.error.message : 'no message';
+        logPipDebug(`Video Error code: ${errCode} | msg: ${errMessage}`, true);
       });
     }
 
@@ -680,7 +682,7 @@
       try {
         if (navigator.audioSession) {
           navigator.audioSession.type = 'playback';
-          logPipDebug('AudioSession category set to playback.');
+          logPipDebug('AudioSession set to playback.');
         }
       } catch (e) {
         console.warn('AudioSession API not exposed:', e);
@@ -1034,7 +1036,9 @@
       document.getElementById('player-title').textContent = title;
       document.getElementById('modal-video-title').textContent = title;
       document.getElementById('modal-channel-title').textContent = channel;
-      logPipDebug('Fetching proxy metadata for video...');
+      
+      const debugBox = document.getElementById('pip-debug-box');
+      if (debugBox) debugBox.innerHTML = `[Trace] Opening player for ${videoId}...`;
 
       updateMediaSessionMetadata(title, channel, thumbnail || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`);
 
@@ -1047,24 +1051,37 @@
         proxyVideo.style.display = 'block';
         pipBtn.style.display = 'flex';
 
+        const apiUrl = `${proxyUrl}/api/v1/videos/${videoId}`;
+        logPipDebug(`Fetching API: ${apiUrl}`);
+
         try {
-          const res = await fetch(`${proxyUrl}/api/v1/videos/${videoId}`);
+          const res = await fetch(apiUrl);
+          logPipDebug(`API Response status: ${res.status} ${res.statusText}`);
+          
           if (!res.ok) {
-            throw new Error(`API HTTP status ${res.status}`);
+            throw new Error(`API returned HTTP ${res.status}`);
           }
+          
           const data = await res.json();
+          logPipDebug(`API JSON parsed successfully.`);
+
           let rawStreamUrl = '';
 
           if (data.formatStreams && data.formatStreams.length > 0) {
             const mp4Stream = data.formatStreams.find(s => s.container === 'mp4' || s.type?.includes('mp4'));
             rawStreamUrl = mp4Stream ? mp4Stream.url : data.formatStreams[0].url;
+            logPipDebug(`Found formatStreams. Count: ${data.formatStreams.length}`);
           } else if (data.adaptiveFormats && data.adaptiveFormats.length > 0) {
             const mp4Adaptive = data.adaptiveFormats.find(f => f.container === 'mp4' && f.type?.includes('video'));
             if (mp4Adaptive) rawStreamUrl = mp4Adaptive.url;
+            logPipDebug(`Found adaptiveFormats. Count: ${data.adaptiveFormats.length}`);
+          } else {
+            logPipDebug(`Warning: No streams found in JSON payload.`, true);
           }
 
           if (rawStreamUrl) {
             const streamUrl = rawStreamUrl.includes('?') ? `${rawStreamUrl}&local=true` : `${rawStreamUrl}?local=true`;
+            logPipDebug(`Assigning stream URL to video element...`);
             
             proxyVideo.src = streamUrl;
             proxyVideo.currentTime = savedTime;
@@ -1072,30 +1089,31 @@
             const playPromise = proxyVideo.play();
             if (playPromise !== undefined) {
               playPromise.catch(e => {
-                console.warn('Auto-play muted fallback triggered:', e);
+                logPipDebug(`Auto-play blocked/muted: ${e.message}`, true);
                 proxyVideo.muted = true;
                 proxyVideo.play();
               });
             }
             startProxyProgressTracking(proxyVideo);
-            logPipDebug('Proxied stream active & playing.');
+            logPipDebug('Stream element source assigned successfully.');
           } else {
-            throw new Error('No valid streams found in API response');
+            throw new Error('No valid streams matched mp4 criteria');
           }
         } catch (err) {
-          logPipDebug(`Proxy Error: ${err.message}`, true);
+          logPipDebug(`Proxy Error Caught: ${err.message}`, true);
           console.error('Proxy failure details:', err);
           pipBtn.style.display = 'none';
           loadIframePlayer(videoId, savedTime);
         }
       } else {
-        logPipDebug('No proxyUrl set. Using iframe.');
+        logPipDebug('No proxyUrl configured. Falling back to iframe.');
         pipBtn.style.display = 'none';
         loadIframePlayer(videoId, savedTime);
       }
     }
 
     function loadIframePlayer(videoId, savedTime) {
+      logPipDebug(`Loading YouTube Iframe for ID: ${videoId}`);
       const ytContainer = document.getElementById('youtube-player');
       const proxyVideo = document.getElementById('proxy-video-player');
       proxyVideo.style.display = 'none';
