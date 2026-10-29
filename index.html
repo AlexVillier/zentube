@@ -619,7 +619,7 @@
     let progressInterval = null;
     let activeFeedVideos = [];
     
-    // Web Audio API Persistent Context for iOS PWA background audio lock
+    // Web Audio API Persistent Context for Background PWA Audio
     let globalAudioCtx = null;
     let sourceNodeConnected = false;
 
@@ -1086,7 +1086,7 @@
       document.getElementById('player-title').textContent = title;
       document.getElementById('modal-video-title').textContent = title;
       document.getElementById('modal-channel-title').textContent = channel;
-      logPipDebug('Player opened. Waiting for proxy stream...');
+      logPipDebug('Player opened. Requesting proxied video stream...');
 
       updateMediaSessionMetadata(title, channel, thumbnail || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`);
 
@@ -1100,10 +1100,12 @@
         pipBtn.style.display = 'flex';
 
         try {
-          const res = await fetch(`${proxyUrl}/api/v1/videos/${videoId}`);
+          // Appending &local=true forces Invidious API to route through proxy URLs properly
+          const res = await fetch(`${proxyUrl}/api/v1/videos/${videoId}?local=true`);
           const data = await res.json();
           let rawStreamUrl = '';
 
+          // Prefer proxy-ready format streams or adaptive streams
           if (data.formatStreams && data.formatStreams.length > 0) {
             const mp4Stream = data.formatStreams.find(s => s.container === 'mp4' || s.type?.includes('mp4'));
             rawStreamUrl = mp4Stream ? mp4Stream.url : data.formatStreams[0].url;
@@ -1113,12 +1115,13 @@
           }
 
           if (rawStreamUrl) {
-            const streamUrl = rawStreamUrl.includes('?') ? `${rawStreamUrl}&local=true` : `${rawStreamUrl}?local=true`;
+            // Ensure URL has local parameter to prevent direct YouTube fallback blocks
+            const streamUrl = rawStreamUrl.includes('?') ? (rawStreamUrl.includes('local=true') ? rawStreamUrl : `${rawStreamUrl}&local=true`) : `${rawStreamUrl}?local=true`;
             
             proxyVideo.src = streamUrl;
             proxyVideo.currentTime = savedTime;
             
-            // Initialize Web Audio graph connection now that CORS headers are present
+            // Connect Web Audio graph for background persistence
             initializePersistentAudioGraph(proxyVideo);
 
             const playPromise = proxyVideo.play();
@@ -1131,9 +1134,9 @@
             }
             startProxyProgressTracking(proxyVideo);
             startBackgroundAudioKeeper(streamUrl);
-            logPipDebug('Proxy stream active & playing with WebAudio graph.');
+            logPipDebug('Proxied stream active & playing.');
           } else {
-            throw new Error('No valid MP4 stream found');
+            throw new Error('No valid proxied stream found');
           }
         } catch (err) {
           logPipDebug(`Proxy error: ${err.message}. Fallback to iframe.`);
