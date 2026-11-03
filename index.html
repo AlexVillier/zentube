@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>ZenTube - Minimalist YouTube with Detailed Debug Logging</title>
+  <title>ZenTube - Minimalist YouTube with iOS Background Audio Override</title>
   
   <!-- iOS WebApp Meta Tags for Native Feel -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -702,6 +702,21 @@
         });
       });
 
+      // Background audio auto-pause override for iOS WebKit
+      video.addEventListener('pause', () => {
+        if (document.hidden && !userPaused) {
+          logVerbose('System minimized app. Overriding iOS background auto-pause...');
+          const playPromise = video.play();
+          if (playPromise !== undefined) {
+            playPromise.then(() => {
+              logVerbose('Successfully maintained background audio playback.');
+            }).catch(err => {
+              logVerbose(`Background resume error: ${err.message}`, 'warn');
+            });
+          }
+        }
+      });
+
       video.addEventListener('error', (e) => {
         const err = video.error;
         logVerbose(`VIDEO ERROR DETECTED -> code: ${err ? err.code : 'unknown'}, message: ${err ? err.message : 'none'}`, 'error');
@@ -733,7 +748,7 @@
             if (proxyVideo) proxyVideo.play();
           });
           navigator.mediaSession.setActionHandler('pause', () => {
-            userPaused = true;
+            userPaused = true; // Mark explicit user pause
             logVerbose('MediaSession action: pause requested');
             if (proxyVideo) proxyVideo.pause();
           });
