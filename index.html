@@ -1011,7 +1011,6 @@
     function openPlayer(videoId, title, channel, thumbnail = '') {
       currentVideoId = videoId;
       const modal = document.getElementById('player-modal');
-      const pipBtn = document.getElementById('pip-btn');
       
       modal.classList.remove('docked');
       modal.classList.add('active');
@@ -1019,7 +1018,7 @@
       document.getElementById('player-title').textContent = title;
       document.getElementById('modal-video-title').textContent = title;
       document.getElementById('modal-channel-title').textContent = channel;
-      logPipDebug('Player opened. Assigning direct proxy stream...');
+      logPipDebug('Player opened. Assigning proxy stream synchronously...');
 
       updateMediaSessionMetadata(title, channel, thumbnail || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`);
 
@@ -1028,7 +1027,7 @@
 
       if (proxyUrl) {
         const cleanBase = proxyUrl.replace(/\/$/, '');
-        const streamUrl = `${cleanBase}/latest_version?id=${videoId}&itag=18&local=true`;
+        const streamUrl = `${cleanBase}/latest_version?id=${videoId}&local=true`;
         
         proxyVideo.src = streamUrl;
         proxyVideo.currentTime = savedTime;
@@ -1042,7 +1041,7 @@
           });
         }
         startProxyProgressTracking(proxyVideo);
-        logPipDebug('Proxy stream assigned instantly with background audio support.');
+        logPipDebug('Proxy stream assigned synchronously with background audio support.');
       } else {
         logPipDebug('Error: No proxyUrl set in Settings.');
       }
