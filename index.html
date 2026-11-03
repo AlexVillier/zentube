@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>ZenTube - Adaptive Quality & Synchronized Dual-Stream PWA</title>
+  <title>ZenTube - Background Audio & Native Language PWA</title>
   
   <!-- iOS WebApp Meta Tags for Native Feel -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -714,16 +714,12 @@
         logVerbose(`VIDEO ERROR DETECTED -> code: ${err ? err.code : 'unknown'}, message: ${err ? err.message : 'none'}`, 'error');
       });
 
-      // Synchronized Playback Start: Audio only plays once video is buffered and playing
-      video.onplaying = () => {
-        clearStallMonitor();
-        if (!userPaused && bgAudio.paused) {
-          bgAudio.play().catch(() => {});
-        }
-      };
-
+      // Synchronized Play/Pause Binding & Independent Background Audio Lifecycle
       video.onplay = () => {
         userPaused = false;
+        if (bgAudio.paused) {
+          bgAudio.play().catch(e => logVerbose(`bgAudio play resume error: ${e.message}`, 'warn'));
+        }
       };
 
       video.onpause = () => {
@@ -733,23 +729,24 @@
         }
       };
 
+      video.onplaying = () => {
+        clearStallMonitor();
+      };
+
       video.onwaiting = () => {
-        bgAudio.pause();
         startStallMonitor();
       };
 
       video.onstalled = () => {
-        bgAudio.pause();
         startStallMonitor();
       };
 
       video.onseeking = () => {
-        bgAudio.pause();
         bgAudio.currentTime = video.currentTime;
       };
 
       video.onseeked = () => {
-        if (!video.paused && !userPaused) {
+        if (!video.paused && !userPaused && bgAudio.paused) {
           bgAudio.play().catch(() => {});
         }
       };
@@ -759,9 +756,13 @@
         logVerbose(`Visibility Change -> hidden: ${document.hidden}, userPaused: ${userPaused}, audioPaused: ${bgAudio.paused}`);
 
         if (document.hidden && !userPaused) {
-          logVerbose('App backgrounded. Pausing video element; background audio continues.');
+          logVerbose('App backgrounded. Pausing video element; background audio stream maintains independent playback.');
           video.pause();
           stopSyncLoop();
+          // Ensure background audio stays active regardless of video element pause
+          if (bgAudio.paused) {
+            bgAudio.play().catch(() => {});
+          }
         } else if (!document.hidden && !userPaused) {
           logVerbose('App foregrounded. Re-syncing video timeline and resuming video...');
           video.currentTime = bgAudio.currentTime;
@@ -781,7 +782,6 @@
           currentQualityIndex++;
           const newFormat = availableVideoFormats[currentQualityIndex];
           const proxyVideo = document.getElementById('proxy-video-player');
-          const bgAudio = document.getElementById('bg-audio-fallback');
           const savedTime = proxyVideo.currentTime;
 
           let newUrl = newFormat.url.startsWith('http') ? newFormat.url : `${proxyUrl}${newFormat.url}`;
@@ -1231,18 +1231,27 @@
           let videoStreamUrl = '';
 
           if (data.adaptiveFormats && data.adaptiveFormats.length > 0) {
-            // 1. Strict Primary/Original Audio Track Selection
-            const audioFormats = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('audio/'));
-            audioFormats.sort((a, b) => {
+            // 1. Strict Master/Original Audio Track Analyzer (Excludes Dubs)
+            const audioFormats = data.adaptiveFormats.f => f.type && f.type.startsWith('audio/');
+            const filteredAudio = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('audio/'));
+            
+            filteredAudio.sort((a, b) => {
               const langA = (a.languageCode || '').toLowerCase();
               const langB = (b.languageCode || '').toLowerCase();
-              if (!langA && langB) return -1;
-              if (!langB && langA) return 1;
-              if (langA === 'en' && langB !== 'en') return -1;
-              if (langB === 'en' && langA !== 'en') return 1;
+              const isOrigA = a.isOriginal === true || !langA || langA === 'en' || langA.startsWith('en-');
+              const isOrigB = b.isOriginal === true || !langB || langB === 'en' || langB.startsWith('en-');
+              
+              // Penalize dubbed/translated tracks
+              const isDubA = langA.includes('dub') || a.qualityLabel?.includes('dub');
+              const isDubB = langB.includes('dub') || b.qualityLabel?.includes('dub');
+
+              if (isDubA && !isDubB) return 1;
+              if (isDubB && !isDubA) return -1;
+              if (isOrigA && !isOrigB) return -1;
+              if (isOrigB && !isOrigA) return 1;
               return (b.bitrate || 0) - (a.bitrate || 0);
             });
-            const audioFormat = audioFormats[0];
+            const audioFormat = filteredAudio[0];
 
             // 2. High-Quality Video Selection (1080p Target with Adaptive Fallback Chain)
             availableVideoFormats = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('video/') && (f.height || f.qualityLabel));
@@ -1258,7 +1267,7 @@
               const u = new URL(audioFormat.url.startsWith('http') ? audioFormat.url : `${proxyUrl}${audioFormat.url}`);
               audioStreamUrl = u.hostname.includes('googlevideo.com') ? `${proxyUrl}${u.pathname}${u.search}` : u.toString();
               audioStreamUrl = audioStreamUrl.includes('?') ? `${audioStreamUrl}&local=true` : `${audioStreamUrl}?local=true`;
-              logVerbose(`Selected Original Audio Track (Lang: ${audioFormat.languageCode || 'default'}, Bitrate: ${audioFormat.bitrate || 'unknown'})`);
+              logVerbose(`Selected Original Master Audio (Lang: ${audioFormat.languageCode || 'default'}, Bitrate: ${audioFormat.bitrate || 'unknown'})`);
             }
 
             if (videoFormat && videoFormat.url) {
@@ -1272,7 +1281,7 @@
 
           if (audioStreamUrl && videoStreamUrl) {
             activeStreamUrl = audioStreamUrl;
-            logVerbose('Successfully extracted high-definition video and primary audio adaptive streams.');
+            logVerbose('Successfully extracted high-definition video and master audio adaptive streams.');
 
             proxyVideo.src = videoStreamUrl;
             proxyVideo.currentTime = savedTime;
@@ -1280,14 +1289,12 @@
             bgAudio.src = audioStreamUrl;
             bgAudio.currentTime = savedTime;
 
-            // Audio does not start before video; video play triggers synchronized launch
-            proxyVideo.play().then(() => {
-              logVerbose('Video stream playing. Starting sync loop.');
-              startSyncLoop(proxyVideo, bgAudio);
-            }).catch(e => {
-              logVerbose(`Autoplay restriction: ${e.message}. Forcing muted fallback.`, 'warn');
-              proxyVideo.muted = true;
-              proxyVideo.play();
+            // Independent parallel start for both media elements ensuring robust background session
+            Promise.all([
+              proxyVideo.play().catch(e => { logVerbose(`Video autoplay restriction: ${e.message}`, 'warn'); proxyVideo.muted = true; return proxyVideo.play(); }),
+              bgAudio.play().catch(e => logVerbose(`Audio background play restriction: ${e.message}`, 'warn'))
+            ]).then(() => {
+              logVerbose('Concurrent adaptive streams active. Starting sync loop.');
               startSyncLoop(proxyVideo, bgAudio);
             });
 
