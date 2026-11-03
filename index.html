@@ -678,7 +678,6 @@
         if ('mediaSession' in navigator) {
           navigator.mediaSession.playbackState = "paused";
         }
-        // Intercept background auto-pause and resume immediately if user didn't request pause
         if (document.hidden && !userPaused) {
           logPipDebug('Intercepted background pause — resuming playback');
           video.play().catch(e => console.warn('Background resume blocked:', e));
@@ -1041,7 +1040,7 @@
       document.getElementById('player-title').textContent = title;
       document.getElementById('modal-video-title').textContent = title;
       document.getElementById('modal-channel-title').textContent = channel;
-      logPipDebug('Player opened. Waiting for proxy stream...');
+      logPipDebug('Player opened. Requesting proxy stream...');
 
       updateMediaSessionMetadata(title, channel, thumbnail || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`);
 
@@ -1068,8 +1067,9 @@
           }
 
           if (rawStreamUrl) {
-            const streamUrl = rawStreamUrl.includes('?') ? `${rawStreamUrl}&local=true` : `${rawStreamUrl}?local=true`;
+            const streamUrl = rawStreamUrl.startsWith('http') ? rawStreamUrl : `${proxyUrl}${rawStreamUrl}`;
             
+            logPipDebug('Stream acquired. Loading source...');
             proxyVideo.src = streamUrl;
             proxyVideo.currentTime = savedTime;
             
