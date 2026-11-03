@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>ZenTube - Minimalist YouTube with iOS PiP & Background Audio</title>
+  <title>ZenTube - Minimalist YouTube with Detailed Debug Logging</title>
   
   <!-- iOS WebApp Meta Tags for Native Feel -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -321,6 +321,38 @@
     .player-details {
       padding: 16px;
       flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* Verbose Debug Log Terminal */
+    .debug-terminal {
+      background: #000;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      color: #30d158;
+      height: 160px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .debug-terminal .log-entry {
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      padding-bottom: 2px;
+    }
+    .debug-terminal .log-entry.error {
+      color: #ff453a;
+    }
+    .debug-terminal .log-entry.warn {
+      color: #ffd60a;
     }
 
     /* Docked Mini-Player Mode */
@@ -568,17 +600,14 @@
     <div class="player-container" id="player-container">
       <div id="youtube-player"></div>
       <video id="proxy-video-player" controls playsinline webkit-playsinline x-webkit-airplay="allow" crossorigin="anonymous" disablepictureinpicture="false"></video>
-      <audio id="bg-audio-fallback" preload="auto" style="display:none;"></audio>
     </div>
     <div class="player-details">
-      <h2 id="modal-video-title" style="font-size: 18px; margin-bottom: 8px;"></h2>
-      <p id="modal-channel-title" style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px;"></p>
-      <div style="padding: 12px; background: var(--bg-surface); border-radius: 12px; border: 1px solid var(--border-color); font-size: 13px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 12px;" id="modal-description">
-        System Picture-in-Picture and background audio are active. Lock your screen or switch apps while playing.
-      </div>
-      <!-- Live PiP Debug Box -->
-      <div style="padding: 10px; background: #000; border-radius: 8px; border: 1px solid var(--accent-color); font-family: monospace; font-size: 11px; color: #30d158; line-height: 1.3;" id="pip-debug-box">
-        PiP Debug Log: Ready
+      <h2 id="modal-video-title" style="font-size: 18px; margin-bottom: 4px;"></h2>
+      <p id="modal-channel-title" style="color: var(--text-secondary); font-size: 13px; margin-bottom: 8px;"></p>
+      
+      <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Live Verbose Debug Terminal</div>
+      <div class="debug-terminal" id="debug-terminal">
+        <div class="log-entry">[Init] Terminal ready. Waiting for playback action...</div>
       </div>
     </div>
   </div>
@@ -632,7 +661,7 @@
         if (proxyInput) proxyInput.value = proxyUrl;
 
         renderFeed(demoVideos, 'video-grid');
-        setupVideoPipEventListeners();
+        setupVerboseVideoListeners();
         setupBackgroundAudioHandlers();
 
         if (window.google && window.google.accounts) {
@@ -643,97 +672,76 @@
       }
     });
 
-    function logPipDebug(msg) {
-      const box = document.getElementById('pip-debug-box');
-      if (box) {
+    function logVerbose(msg, type = 'info') {
+      const terminal = document.getElementById('debug-terminal');
+      if (terminal) {
         const timestamp = new Date().toLocaleTimeString();
-        box.innerHTML = `[${timestamp}] ${msg}`;
+        const entry = document.createElement('div');
+        entry.className = `log-entry ${type}`;
+        entry.textContent = `[${timestamp}] ${msg}`;
+        terminal.appendChild(entry);
+        terminal.scrollTop = terminal.scrollHeight;
       }
-      console.log('PiP Debug:', msg);
+      console.log(`[ZenTube Debug] ${msg}`);
     }
 
-    function setupVideoPipEventListeners() {
+    function setupVerboseVideoListeners() {
       const video = document.getElementById('proxy-video-player');
       if (!video) return;
 
-      video.addEventListener('webkitpresentationmodechanged', () => {
-        logPipDebug(`webkitmode changed: ${video.webkitPresentationMode}`);
+      const events = [
+        'loadstart', 'durationchange', 'loadedmetadata', 'loadeddata', 
+        'progress', 'canplay', 'canplaythrough', 'play', 'playing', 
+        'pause', 'waiting', 'stalled', 'suspend', 'emptied', 'stalled'
+      ];
+
+      events.forEach(eventName => {
+        video.addEventListener(eventName, (e) => {
+          if (eventName === 'progress') return; // skip spammy progress events
+          logVerbose(`Video Event: ${eventName} (readyState: ${video.readyState}, networkState: ${video.networkState})`);
+        });
       });
 
-      video.addEventListener('enterpictureinpicture', () => {
-        logPipDebug('Event: enterpictureinpicture');
+      video.addEventListener('error', (e) => {
+        const err = video.error;
+        logVerbose(`VIDEO ERROR DETECTED -> code: ${err ? err.code : 'unknown'}, message: ${err ? err.message : 'none'}`, 'error');
       });
 
-      video.addEventListener('leavepictureinpicture', () => {
-        logPipDebug('Event: leavepictureinpicture');
-      });
-
-      video.addEventListener('play', () => {
-        userPaused = false;
-        if ('mediaSession' in navigator) {
-          navigator.mediaSession.playbackState = "playing";
-        }
-      });
-
-      video.addEventListener('pause', () => {
-        if ('mediaSession' in navigator) {
-          navigator.mediaSession.playbackState = "paused";
-        }
-      });
-
-      video.addEventListener('error', () => {
-        logPipDebug(`Video Error code: ${video.error ? video.error.code : 'unknown'}`);
+      document.addEventListener('visibilitychange', () => {
+        logVerbose(`Visibility Change -> hidden: ${document.hidden}, paused: ${video.paused}`);
       });
     }
 
-    /* Native iOS Audio Session & Background Handlers with Visibility Transfer */
+    /* Native iOS Audio Session & MediaSession Handlers */
     function setupBackgroundAudioHandlers() {
       const proxyVideo = document.getElementById('proxy-video-player');
-      const bgAudio = document.getElementById('bg-audio-fallback');
 
       try {
         if (navigator.audioSession) {
           navigator.audioSession.type = 'playback';
+          logVerbose('AudioSession API configured: playback');
         }
       } catch (e) {
-        console.warn('AudioSession API not exposed:', e);
+        logVerbose(`AudioSession warning: ${e.message}`, 'warn');
       }
 
       try {
         if ('mediaSession' in navigator) {
           navigator.mediaSession.setActionHandler('play', () => {
             userPaused = false;
-            if (document.hidden && bgAudio && bgAudio.src) {
-              bgAudio.play();
-            } else if (proxyVideo) {
-              proxyVideo.play();
-            }
+            logVerbose('MediaSession action: play requested');
+            if (proxyVideo) proxyVideo.play();
           });
           navigator.mediaSession.setActionHandler('pause', () => {
             userPaused = true;
+            logVerbose('MediaSession action: pause requested');
             if (proxyVideo) proxyVideo.pause();
-            if (bgAudio) bgAudio.pause();
           });
+          logVerbose('MediaSession action handlers bound successfully');
         }
       } catch (err) {
-        console.warn('MediaSession action handlers warning:', err);
+        logVerbose(`MediaSession warning: ${err.message}`, 'warn');
       }
-
-      // Visibility change handler to seamlessly route active stream to hidden audio fallback when backgrounded
-      document.addEventListener('visibilitychange', () => {
-        if (document.hidden && proxyVideo && !proxyVideo.paused && proxyVideo.src) {
-          bgAudio.src = proxyVideo.src;
-          bgAudio.currentTime = proxyVideo.currentTime;
-          bgAudio.play().catch(err => console.warn('Background audio fallback error:', err));
-        } else if (!document.hidden && bgAudio) {
-          if (!bgAudio.paused && proxyVideo) {
-            proxyVideo.currentTime = bgAudio.currentTime;
-            proxyVideo.play();
-          }
-          bgAudio.pause();
-          bgAudio.src = '';
-        }
-      });
     }
 
     function updateMediaSessionMetadata(title, channel, thumbnail) {
@@ -747,9 +755,10 @@
               { src: thumbnail, sizes: '512x512', type: 'image/jpeg' }
             ]
           });
+          logVerbose(`MediaSession metadata updated for: ${title}`);
         }
       } catch (err) {
-        console.warn('MediaMetadata not supported:', err);
+        logVerbose(`Metadata warning: ${err.message}`, 'warn');
       }
     }
 
@@ -1059,8 +1068,12 @@
       document.getElementById('player-title').textContent = title;
       document.getElementById('modal-video-title').textContent = title;
       document.getElementById('modal-channel-title').textContent = channel;
-      logPipDebug('Player opened. Requesting proxy stream...');
+      
+      // Clear terminal for fresh session logs
+      const terminal = document.getElementById('debug-terminal');
+      if (terminal) terminal.innerHTML = '';
 
+      logVerbose(`Opening player for videoId: ${videoId}`);
       updateMediaSessionMetadata(title, channel, thumbnail || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`);
 
       const savedTime = watchProgress[videoId] ? watchProgress[videoId].currentTime : 0;
@@ -1072,53 +1085,64 @@
         proxyVideo.style.display = 'block';
         pipBtn.style.display = 'flex';
 
+        logVerbose(`Fetching Invidious API metadata from: ${proxyUrl}/api/v1/videos/${videoId}`);
+
         try {
           const res = await fetch(`${proxyUrl}/api/v1/videos/${videoId}`);
+          logVerbose(`API Response status: ${res.status} ${res.statusText}`);
+          
+          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+          
           const data = await res.json();
+          logVerbose(`API JSON received. formatStreams count: ${data.formatStreams ? data.formatStreams.length : 0}, adaptiveFormats count: ${data.adaptiveFormats ? data.adaptiveFormats.length : 0}`);
+
           let rawStreamUrl = '';
 
           if (data.formatStreams && data.formatStreams.length > 0) {
             const mp4Stream = data.formatStreams.find(s => s.container === 'mp4' || s.type?.includes('mp4'));
             rawStreamUrl = mp4Stream ? mp4Stream.url : data.formatStreams[0].url;
+            logVerbose(`Selected formatStream container: ${mp4Stream ? mp4Stream.container : 'default/first'}`);
           } else if (data.adaptiveFormats && data.adaptiveFormats.length > 0) {
             const mp4Adaptive = data.adaptiveFormats.find(f => f.container === 'mp4' && f.type?.includes('video/mp4'));
             if (mp4Adaptive) rawStreamUrl = mp4Adaptive.url;
+            logVerbose(`Selected adaptiveFormat container: ${mp4Adaptive ? mp4Adaptive.container : 'none'}`);
           }
 
           if (rawStreamUrl) {
             let streamUrl = rawStreamUrl.startsWith('http') ? rawStreamUrl : `${proxyUrl}${rawStreamUrl}`;
             streamUrl = streamUrl.includes('?') ? `${streamUrl}&local=true` : `${streamUrl}?local=true`;
             
-            logPipDebug('Stream resolved. Loading source...');
+            logVerbose(`Resolved stream URL: ${streamUrl.substring(0, 80)}...`);
             proxyVideo.src = streamUrl;
             proxyVideo.currentTime = savedTime;
             
             const playPromise = proxyVideo.play();
             if (playPromise !== undefined) {
               playPromise.catch(e => {
-                console.warn('Auto-play muted fallback triggered:', e);
+                logVerbose(`Auto-play blocked/rejected: ${e.message}. Forcing muted playback fallback.`, 'warn');
                 proxyVideo.muted = true;
                 proxyVideo.play();
               });
             }
             startProxyProgressTracking(proxyVideo);
-            logPipDebug('Proxy stream active & playing.');
+            logVerbose('proxyVideo.play() executed successfully.');
           } else {
-            throw new Error('No compatible MP4 stream found');
+            throw new Error('No compatible MP4 stream found in JSON response');
           }
         } catch (err) {
-          logPipDebug(`Proxy error: ${err.message}. Fallback to iframe.`);
+          logVerbose(`Proxy error caught: ${err.message}. Falling back to YouTube iframe.`, 'error');
           pipBtn.style.display = 'none';
           loadIframePlayer(videoId, savedTime);
         }
       } else {
-        logPipDebug('No proxyUrl set. Using iframe.');
+        logVerbose('No proxyUrl configured in settings. Loading YouTube iframe player.');
         pipBtn.style.display = 'none';
         loadIframePlayer(videoId, savedTime);
       }
     }
 
     function loadIframePlayer(videoId, savedTime) {
+      logVerbose(`Loading iframe player for videoId: ${videoId} at ${savedTime}s`);
       const ytContainer = document.getElementById('youtube-player');
       const proxyVideo = document.getElementById('proxy-video-player');
       proxyVideo.style.display = 'none';
@@ -1149,11 +1173,11 @@
     function triggerSystemPip() {
       const proxyVideo = document.getElementById('proxy-video-player');
       if (!proxyVideo) {
-        logPipDebug('Error: #proxy-video-player not found in DOM.');
+        logVerbose('PiP Error: #proxy-video-player not found.', 'error');
         return;
       }
 
-      logPipDebug(`Triggering PiP... paused=${proxyVideo.paused}, readyState=${proxyVideo.readyState}`);
+      logVerbose(`Triggering PiP... paused=${proxyVideo.paused}, readyState=${proxyVideo.readyState}`);
 
       try {
         proxyVideo.style.display = 'block';
@@ -1165,26 +1189,25 @@
 
         if (typeof proxyVideo.webkitSetPresentationMode === 'function') {
           const currentMode = proxyVideo.webkitPresentationMode;
-          logPipDebug(`webkitMode current: ${currentMode}`);
+          logVerbose(`webkitMode current: ${currentMode}`);
           const targetMode = (currentMode === 'picture-in-picture') ? 'inline' : 'picture-in-picture';
           proxyVideo.webkitSetPresentationMode(targetMode);
-          logPipDebug(`Requested webkitMode: ${targetMode}`);
+          logVerbose(`Requested webkitMode: ${targetMode}`);
           return;
         }
 
         if (document.pictureInPictureElement) {
           document.exitPictureInPicture();
-          logPipDebug('Exited W3C PiP.');
+          logVerbose('Exited W3C PiP.');
         } else if (document.pictureInPictureEnabled && typeof proxyVideo.requestPictureInPicture === 'function') {
           proxyVideo.requestPictureInPicture();
-          logPipDebug('Requested W3C PiP.');
+          logVerbose('Requested W3C PiP.');
         } else {
-          logPipDebug('Error: PiP not supported.');
+          logVerbose('PiP Error: Picture-in-Picture not supported by environment.', 'error');
           alert('Picture-in-Picture is not supported by your current browser environment.');
         }
       } catch (err) {
-        logPipDebug(`PiP Exception: ${err.message}`);
-        console.error('PiP Activation Error:', err);
+        logVerbose(`PiP Exception: ${err.message}`, 'error');
       }
     }
 
@@ -1249,6 +1272,7 @@
     }
 
     function closePlayer() {
+      logVerbose('Closing player modal and stopping playback');
       stopProgressTracking();
       userPaused = true;
       if (ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
@@ -1257,11 +1281,6 @@
         proxyVideo.pause();
         proxyVideo.src = '';
         proxyVideo.style.display = 'none';
-      }
-      const bgAudio = document.getElementById('bg-audio-fallback');
-      if (bgAudio) {
-        bgAudio.pause();
-        bgAudio.src = '';
       }
       const ytContainer = document.getElementById('youtube-player');
       if (ytContainer) {
