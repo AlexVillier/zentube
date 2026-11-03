@@ -567,7 +567,8 @@
     </div>
     <div class="player-container" id="player-container">
       <div id="youtube-player"></div>
-      <video id="proxy-video-player" controls playsinline webkit-playsinline x-webkit-airplay="allow" disablepictureinpicture="false"></video>
+      <video id="proxy-video-player" controls playsinline webkit-playsinline x-webkit-airplay="allow" crossorigin="anonymous" disablepictureinpicture="false"></video>
+      <audio id="bg-audio-fallback" preload="auto" style="display:none;"></audio>
     </div>
     <div class="player-details">
       <h2 id="modal-video-title" style="font-size: 18px; margin-bottom: 8px;"></h2>
@@ -678,10 +679,6 @@
         if ('mediaSession' in navigator) {
           navigator.mediaSession.playbackState = "paused";
         }
-        if (document.hidden && !userPaused) {
-          logPipDebug('Intercepted background pause — resuming playback');
-          video.play().catch(e => console.warn('Background resume blocked:', e));
-        }
       });
 
       video.addEventListener('error', () => {
@@ -689,9 +686,10 @@
       });
     }
 
-    /* Native iOS Audio Session & Background Handlers */
+    /* Native iOS Audio Session & Background Handlers with Visibility Transfer */
     function setupBackgroundAudioHandlers() {
       const proxyVideo = document.getElementById('proxy-video-player');
+      const bgAudio = document.getElementById('bg-audio-fallback');
 
       try {
         if (navigator.audioSession) {
@@ -705,16 +703,37 @@
         if ('mediaSession' in navigator) {
           navigator.mediaSession.setActionHandler('play', () => {
             userPaused = false;
-            if (proxyVideo) proxyVideo.play();
+            if (document.hidden && bgAudio && bgAudio.src) {
+              bgAudio.play();
+            } else if (proxyVideo) {
+              proxyVideo.play();
+            }
           });
           navigator.mediaSession.setActionHandler('pause', () => {
             userPaused = true;
             if (proxyVideo) proxyVideo.pause();
+            if (bgAudio) bgAudio.pause();
           });
         }
       } catch (err) {
         console.warn('MediaSession action handlers warning:', err);
       }
+
+      // Visibility change handler to seamlessly route active stream to hidden audio fallback when backgrounded
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden && proxyVideo && !proxyVideo.paused && proxyVideo.src) {
+          bgAudio.src = proxyVideo.src;
+          bgAudio.currentTime = proxyVideo.currentTime;
+          bgAudio.play().catch(err => console.warn('Background audio fallback error:', err));
+        } else if (!document.hidden && bgAudio) {
+          if (!bgAudio.paused && proxyVideo) {
+            proxyVideo.currentTime = bgAudio.currentTime;
+            proxyVideo.play();
+          }
+          bgAudio.pause();
+          bgAudio.src = '';
+        }
+      });
     }
 
     function updateMediaSessionMetadata(title, channel, thumbnail) {
@@ -1238,6 +1257,11 @@
         proxyVideo.pause();
         proxyVideo.src = '';
         proxyVideo.style.display = 'none';
+      }
+      const bgAudio = document.getElementById('bg-audio-fallback');
+      if (bgAudio) {
+        bgAudio.pause();
+        bgAudio.src = '';
       }
       const ytContainer = document.getElementById('youtube-player');
       if (ytContainer) {
