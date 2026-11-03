@@ -671,24 +671,33 @@
       });
     }
 
-    /* Safe iOS Native Media Session & Background Audio Handlers */
+    /* iOS Native Audio Session & Background Audio Handlers */
     function setupBackgroundAudioHandlers() {
       const proxyVideo = document.getElementById('proxy-video-player');
+
+      // Crucial for iOS PWA background audio persistence
+      try {
+        if (navigator.audioSession) {
+          navigator.audioSession.type = 'playback';
+        }
+      } catch (e) {
+        console.warn('audioSession not supported:', e);
+      }
 
       try {
         if ('mediaSession' in navigator) {
           navigator.mediaSession.setActionHandler('play', () => {
-            if (proxyVideo) proxyVideo.play();
+            if (proxyVideo && proxyVideo.paused) proxyVideo.play();
           });
           navigator.mediaSession.setActionHandler('pause', () => {
-            if (proxyVideo) proxyVideo.pause();
+            if (proxyVideo && !proxyVideo.paused) proxyVideo.pause();
           });
         }
       } catch (err) {
         console.warn('MediaSession action handlers not supported:', err);
       }
 
-      // Prevent iOS WebKit from forcing a pause when app loses visibility or locks screen
+      // Re-assert playback immediately if app loses visibility or locks screen
       document.addEventListener('visibilitychange', () => {
         if (document.hidden && proxyVideo && !proxyVideo.paused) {
           logPipDebug('App backgrounded — maintaining audio stream playback');
