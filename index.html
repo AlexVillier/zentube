@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>ZenTube - Adaptive Dual-Stream with Sync & High Quality</title>
+  <title>ZenTube - High Quality, Native Language & Smooth Sync</title>
   
   <!-- iOS WebApp Meta Tags for Native Feel -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -711,27 +711,29 @@
         logVerbose(`VIDEO ERROR DETECTED -> code: ${err ? err.code : 'unknown'}, message: ${err ? err.message : 'none'}`, 'error');
       });
 
-      // Linked Play/Pause and Seeking State Synchronization
+      // Flawless Linked Play/Pause & Seeking Synchronization
       video.onplay = () => {
-        if (!document.hidden && !userPaused && bgAudio.paused) {
+        userPaused = false;
+        if (!document.hidden && bgAudio.paused) {
           bgAudio.play().catch(() => {});
         }
       };
 
       video.onpause = () => {
-        if (!document.hidden && userPaused && !bgAudio.paused) {
+        userPaused = true;
+        if (!document.hidden && !bgAudio.paused) {
           bgAudio.pause();
         }
       };
 
       video.onseeking = () => {
-        if (Math.abs(video.currentTime - bgAudio.currentTime) > 0.3) {
+        if (Math.abs(video.currentTime - bgAudio.currentTime) > 0.5) {
           bgAudio.currentTime = video.currentTime;
         }
       };
 
       bgAudio.onseeking = () => {
-        if (Math.abs(bgAudio.currentTime - video.currentTime) > 0.3) {
+        if (Math.abs(bgAudio.currentTime - video.currentTime) > 0.5) {
           video.currentTime = bgAudio.currentTime;
         }
       };
@@ -760,11 +762,23 @@
       syncInterval = setInterval(() => {
         if (!videoEl || !audioEl || videoEl.paused || audioEl.paused || document.hidden) return;
         const drift = Math.abs(videoEl.currentTime - audioEl.currentTime);
-        if (drift > 0.15) {
-          logVerbose(`Sync drift detected: ${drift.toFixed(3)}s. Realigning audio to video.`);
+        
+        // Relaxed drift threshold (>0.8s) with smooth playback rate adjustment to prevent micro-stutters
+        if (drift > 0.8) {
+          logVerbose(`Sync drift detected: ${drift.toFixed(3)}s. Realigning audio.`);
           audioEl.currentTime = videoEl.currentTime;
+          audioEl.playbackRate = 1.0;
+        } else if (drift > 0.2) {
+          // Smooth correction via playbackRate nudging
+          if (videoEl.currentTime > audioEl.currentTime) {
+            audioEl.playbackRate = 1.05;
+          } else {
+            audioEl.playbackRate = 0.95;
+          }
+        } else {
+          audioEl.playbackRate = 1.0;
         }
-      }, 1000);
+      }, 1500);
     }
 
     function stopSyncLoop() {
@@ -772,6 +786,8 @@
         clearInterval(syncInterval);
         syncInterval = null;
       }
+      const bgAudio = document.getElementById('bg-audio-fallback');
+      if (bgAudio) bgAudio.playbackRate = 1.0;
     }
 
     /* Native iOS Audio Session & MediaSession Handlers with Adaptive Routing */
@@ -1165,33 +1181,45 @@
           let videoStreamUrl = '';
 
           if (data.adaptiveFormats && data.adaptiveFormats.length > 0) {
-            // Select highest quality audio format available
+            // 1. Select original/primary language audio format (prioritize 'en' or original track)
             const audioFormats = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('audio/'));
-            audioFormats.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+            audioFormats.sort((a, b) => {
+              const langA = (a.languageCode || '').toLowerCase();
+              const langB = (b.languageCode || '').toLowerCase();
+              if (langA === 'en' && langB !== 'en') return -1;
+              if (langB === 'en' && langA !== 'en') return 1;
+              return (b.bitrate || 0) - (a.bitrate || 0);
+            });
             const audioFormat = audioFormats[0];
 
-            // Select highest resolution video format available (e.g. 1080p / 720p over low quality)
-            const videoFormats = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('video/') && f.resolution);
-            videoFormats.sort((a, b) => (b.height || 0) - (a.height || 0));
+            // 2. Select highest resolution video format (parsing qualityLabel or height reliably)
+            const videoFormats = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('video/') && (f.height || f.qualityLabel));
+            videoFormats.sort((a, b) => {
+              const hA = a.height || parseInt(a.qualityLabel) || 0;
+              const hB = b.height || parseInt(b.qualityLabel) || 0;
+              return hB - hA;
+            });
             const videoFormat = videoFormats[0] || data.adaptiveFormats.find(f => f.type && f.type.startsWith('video/'));
 
             if (audioFormat && audioFormat.url) {
               const u = new URL(audioFormat.url.startsWith('http') ? audioFormat.url : `${proxyUrl}${audioFormat.url}`);
               audioStreamUrl = u.hostname.includes('googlevideo.com') ? `${proxyUrl}${u.pathname}${u.search}` : u.toString();
               audioStreamUrl = audioStreamUrl.includes('?') ? `${audioStreamUrl}&local=true` : `${audioStreamUrl}?local=true`;
+              logVerbose(`Selected Original Audio Track (Lang: ${audioFormat.languageCode || 'default'})`);
             }
 
             if (videoFormat && videoFormat.url) {
               const u = new URL(videoFormat.url.startsWith('http') ? videoFormat.url : `${proxyUrl}${videoFormat.url}`);
               videoStreamUrl = u.hostname.includes('googlevideo.com') ? `${proxyUrl}${u.pathname}${u.search}` : u.toString();
               videoStreamUrl = videoStreamUrl.includes('?') ? `${videoStreamUrl}&local=true` : `${videoStreamUrl}?local=true`;
-              logVerbose(`Selected High-Quality Video Resolution: ${videoFormat.resolution || videoFormat.height + 'p'}`);
+              const resLabel = videoFormat.qualityLabel || (videoFormat.height ? videoFormat.height + 'p' : 'HD');
+              logVerbose(`Selected High-Quality Video Resolution: ${resLabel}`);
             }
           }
 
           if (audioStreamUrl && videoStreamUrl) {
             activeStreamUrl = audioStreamUrl;
-            logVerbose('Successfully extracted high-definition video and audio adaptive streams.');
+            logVerbose('Successfully extracted high-definition video and primary audio adaptive streams.');
 
             proxyVideo.src = videoStreamUrl;
             proxyVideo.currentTime = savedTime;
@@ -1200,7 +1228,7 @@
             bgAudio.currentTime = savedTime;
 
             Promise.all([proxyVideo.play(), bgAudio.play()]).then(() => {
-              logVerbose('High-quality concurrent adaptive streams playing successfully.');
+              logVerbose('Synchronized high-quality adaptive streams playing successfully.');
               startSyncLoop(proxyVideo, bgAudio);
             }).catch(e => {
               logVerbose(`Autoplay restriction: ${e.message}. Forcing muted fallback.`, 'warn');
@@ -1212,7 +1240,7 @@
 
             startProxyProgressTracking(proxyVideo);
           } else {
-            throw new Error('Could not extract separate adaptive high-quality formats');
+            throw new Error('Could not extract separate adaptive streams');
           }
         } catch (err) {
           logVerbose(`Adaptive extraction error: ${err.message}. Falling back to iframe.`, 'error');
