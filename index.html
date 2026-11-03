@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>ZenTube - Minimalist YouTube with Clean Background Audio Handoff</title>
+  <title>ZenTube - Minimalist YouTube with Background Audio Activation</title>
   
   <!-- iOS WebApp Meta Tags for Native Feel -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -709,23 +709,23 @@
         logVerbose(`VIDEO ERROR DETECTED -> code: ${err ? err.code : 'unknown'}, message: ${err ? err.message : 'none'}`, 'error');
       });
 
-      // Clean, Non-Destructive Background Audio Handoff on Visibility Change
+      // Explicit Background Audio Activation & Handoff on Visibility Change
       document.addEventListener('visibilitychange', () => {
         const bgAudio = document.getElementById('bg-audio-fallback');
         logVerbose(`Visibility Change -> hidden: ${document.hidden}, videoPaused: ${video.paused}, audioPaused: ${bgAudio.paused}`);
 
         if (document.hidden && video && !video.paused && activeStreamUrl) {
-          logVerbose('App backgrounded. Activating background audio fallback session...');
+          logVerbose('App backgrounded. Activating background audio element...');
           const currentTime = video.currentTime;
           
-          video.pause(); // Pause video without clearing src to prevent network state errors
+          video.pause();
           
           bgAudio.src = activeStreamUrl;
           bgAudio.currentTime = currentTime;
           bgAudio.play().then(() => {
-            logVerbose('Background audio fallback playing successfully.');
+            logVerbose('Background audio fallback successfully playing in background.');
           }).catch(err => {
-            logVerbose(`Background audio fallback error: ${err.message}`, 'error');
+            logVerbose(`Background audio play error: ${err.message}`, 'error');
           });
         } else if (!document.hidden && bgAudio && !bgAudio.paused) {
           logVerbose('App foregrounded. Restoring video player...');
@@ -742,7 +742,7 @@
       });
     }
 
-    /* Native iOS Audio Session & MediaSession Handlers */
+    /* Native iOS Audio Session & MediaSession Handlers with Lock-Screen Routing */
     function setupBackgroundAudioHandlers() {
       const proxyVideo = document.getElementById('proxy-video-player');
       const bgAudio = document.getElementById('bg-audio-fallback');
@@ -762,7 +762,7 @@
             userPaused = false;
             logVerbose('MediaSession action: play requested');
             if (document.hidden && bgAudio.src) {
-              bgAudio.play();
+              bgAudio.play().catch(err => logVerbose(`Lock screen play error: ${err.message}`, 'error'));
             } else if (proxyVideo) {
               proxyVideo.play();
             }
