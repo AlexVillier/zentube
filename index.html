@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>ZenTube - Minimalist YouTube with iOS Background Audio Override</title>
+  <title>ZenTube - Minimalist YouTube with Mutually Exclusive Background Audio Handoff</title>
   
   <!-- iOS WebApp Meta Tags for Native Feel -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -600,6 +600,7 @@
     <div class="player-container" id="player-container">
       <div id="youtube-player"></div>
       <video id="proxy-video-player" controls playsinline webkit-playsinline x-webkit-airplay="allow" crossorigin="anonymous" disablepictureinpicture="false"></video>
+      <audio id="bg-audio-fallback" preload="auto" style="display:none;"></audio>
     </div>
     <div class="player-details">
       <h2 id="modal-video-title" style="font-size: 18px; margin-bottom: 4px;"></h2>
@@ -647,6 +648,7 @@
     let progressInterval = null;
     let activeFeedVideos = [];
     let userPaused = false;
+    let activeStreamUrl = '';
 
     const demoVideos = [
       { id: 'dQw4w9WgXcQ', title: 'Rick Astley - Never Gonna Give You Up', channel: 'Rick Astley', duration: 213, thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg' },
@@ -702,34 +704,50 @@
         });
       });
 
-      // Background audio auto-pause override for iOS WebKit
-      video.addEventListener('pause', () => {
-        if (document.hidden && !userPaused) {
-          logVerbose('System minimized app. Overriding iOS background auto-pause...');
-          const playPromise = video.play();
-          if (playPromise !== undefined) {
-            playPromise.then(() => {
-              logVerbose('Successfully maintained background audio playback.');
-            }).catch(err => {
-              logVerbose(`Background resume error: ${err.message}`, 'warn');
-            });
-          }
-        }
-      });
-
       video.addEventListener('error', (e) => {
         const err = video.error;
         logVerbose(`VIDEO ERROR DETECTED -> code: ${err ? err.code : 'unknown'}, message: ${err ? err.message : 'none'}`, 'error');
       });
 
+      // Mutually Exclusive Background Audio Handoff on Visibility Change
       document.addEventListener('visibilitychange', () => {
-        logVerbose(`Visibility Change -> hidden: ${document.hidden}, paused: ${video.paused}`);
+        const bgAudio = document.getElementById('bg-audio-fallback');
+        logVerbose(`Visibility Change -> hidden: ${document.hidden}, videoPaused: ${video.paused}, audioPaused: ${bgAudio.paused}`);
+
+        if (document.hidden && video && !video.paused && activeStreamUrl) {
+          logVerbose('App backgrounded. Severing video socket & handing off to background audio...');
+          const currentTime = video.currentTime;
+          
+          video.pause();
+          video.src = ''; // Sever video stream socket completely to prevent duplicate token throttling
+          
+          bgAudio.src = activeStreamUrl;
+          bgAudio.currentTime = currentTime;
+          bgAudio.play().then(() => {
+            logVerbose('Background audio fallback socket active & playing.');
+          }).catch(err => {
+            logVerbose(`Background audio fallback error: ${err.message}`, 'error');
+          });
+        } else if (!document.hidden && bgAudio && !bgAudio.paused) {
+          logVerbose('App foregrounded. Severing audio socket & restoring video player...');
+          const currentTime = bgAudio.currentTime;
+          
+          bgAudio.pause();
+          bgAudio.src = ''; // Sever audio stream socket completely
+          
+          video.src = activeStreamUrl;
+          video.currentTime = currentTime;
+          video.play().catch(err => {
+            logVerbose(`Video resume error: ${err.message}`, 'warn');
+          });
+        }
       });
     }
 
     /* Native iOS Audio Session & MediaSession Handlers */
     function setupBackgroundAudioHandlers() {
       const proxyVideo = document.getElementById('proxy-video-player');
+      const bgAudio = document.getElementById('bg-audio-fallback');
 
       try {
         if (navigator.audioSession) {
@@ -745,12 +763,17 @@
           navigator.mediaSession.setActionHandler('play', () => {
             userPaused = false;
             logVerbose('MediaSession action: play requested');
-            if (proxyVideo) proxyVideo.play();
+            if (document.hidden && bgAudio.src) {
+              bgAudio.play();
+            } else if (proxyVideo) {
+              proxyVideo.play();
+            }
           });
           navigator.mediaSession.setActionHandler('pause', () => {
-            userPaused = true; // Mark explicit user pause
+            userPaused = true;
             logVerbose('MediaSession action: pause requested');
             if (proxyVideo) proxyVideo.pause();
+            if (bgAudio) bgAudio.pause();
           });
           logVerbose('MediaSession action handlers bound successfully');
         }
@@ -1140,6 +1163,7 @@
             // Append local=true parameter correctly
             streamUrl = streamUrl.includes('?') ? `${streamUrl}&local=true` : `${streamUrl}?local=true`;
             
+            activeStreamUrl = streamUrl; // Store active stream URL for background audio handoff
             logVerbose(`Proxied Stream URL: ${streamUrl.substring(0, 80)}...`);
             proxyVideo.src = streamUrl;
             proxyVideo.currentTime = savedTime;
@@ -1303,12 +1327,18 @@
       logVerbose('Closing player modal and stopping playback');
       stopProgressTracking();
       userPaused = true;
+      activeStreamUrl = '';
       if (ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
       const proxyVideo = document.getElementById('proxy-video-player');
       if (proxyVideo) {
         proxyVideo.pause();
         proxyVideo.src = '';
         proxyVideo.style.display = 'none';
+      }
+      const bgAudio = document.getElementById('bg-audio-fallback');
+      if (bgAudio) {
+        bgAudio.pause();
+        bgAudio.src = '';
       }
       const ytContainer = document.getElementById('youtube-player');
       if (ytContainer) {
