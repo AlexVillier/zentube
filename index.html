@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>ZenTube - Minimalist YouTube with Automatic Background Audio</title>
+  <title>ZenTube - Minimalist YouTube with Silent Pre-Warmed Background Audio</title>
   
   <!-- iOS WebApp Meta Tags for Native Feel -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -709,13 +709,13 @@
         logVerbose(`VIDEO ERROR DETECTED -> code: ${err ? err.code : 'unknown'}, message: ${err ? err.message : 'none'}`, 'error');
       });
 
-      // Reliable Background Audio Activation using !userPaused tracking
+      // Background Audio Handoff using pre-warmed audio element and zero concurrent sockets
       document.addEventListener('visibilitychange', () => {
         const bgAudio = document.getElementById('bg-audio-fallback');
         logVerbose(`Visibility Change -> hidden: ${document.hidden}, userPaused: ${userPaused}, audioPaused: ${bgAudio.paused}`);
 
         if (document.hidden && !userPaused && activeStreamUrl) {
-          logVerbose('App backgrounded. Activating background audio fallback...');
+          logVerbose('App backgrounded. Switching to pre-warmed audio fallback...');
           const currentTime = video.currentTime;
           
           video.pause();
@@ -723,7 +723,7 @@
           bgAudio.src = activeStreamUrl;
           bgAudio.currentTime = currentTime;
           bgAudio.play().then(() => {
-            logVerbose('Background audio activated successfully.');
+            logVerbose('Background audio fallback playing successfully.');
           }).catch(err => {
             logVerbose(`Background audio error: ${err.message}`, 'error');
           });
@@ -732,7 +732,7 @@
           const currentTime = bgAudio.currentTime;
           
           bgAudio.pause();
-          bgAudio.src = '';
+          bgAudio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
           
           video.currentTime = currentTime;
           video.play().catch(err => {
@@ -1097,7 +1097,17 @@
       userPaused = false;
       const modal = document.getElementById('player-modal');
       const pipBtn = document.getElementById('pip-btn');
+      const bgAudio = document.getElementById('bg-audio-fallback');
       
+      // Synchronously pre-warm background audio using silent data URI within user tap gesture
+      if (bgAudio) {
+        bgAudio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+        bgAudio.play().then(() => {
+          bgAudio.pause();
+          bgAudio.currentTime = 0;
+        }).catch(() => {});
+      }
+
       modal.classList.remove('docked');
       modal.classList.add('active');
 
@@ -1336,7 +1346,7 @@
       const bgAudio = document.getElementById('bg-audio-fallback');
       if (bgAudio) {
         bgAudio.pause();
-        bgAudio.src = '';
+        bgAudio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
       }
       const ytContainer = document.getElementById('youtube-player');
       if (ytContainer) {
