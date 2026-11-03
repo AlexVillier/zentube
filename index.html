@@ -978,7 +978,7 @@
       });
     }
 
-    // Stream natively via Invidious API stream resolution
+    // Stream natively via Invidious server-side proxy route
     async function openPlayer(videoId, title, channel, thumbnail = '') {
       currentVideoId = videoId;
       const modal = document.getElementById('player-modal');
@@ -993,7 +993,7 @@
       document.getElementById('modal-channel-title').textContent = channel;
       
       const debugBox = document.getElementById('pip-debug-box');
-      if (debugBox) debugBox.innerHTML = `[Trace] Fetching stream info for ${videoId}...`;
+      if (debugBox) debugBox.innerHTML = `[Trace] Opening player for ${videoId}...`;
 
       updateMediaSessionMetadata(title, channel, thumbnail || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`);
 
@@ -1003,39 +1003,24 @@
 
       if (proxyUrl) {
         const cleanBase = proxyUrl.replace(/\/$/, '').replace(/\/companion$/, '');
+        const streamUrl = `${cleanBase}/latest_version?id=${videoId}&itag=18&local=true`;
         
-        try {
-          const res = await fetch(`${cleanBase}/api/v1/videos/${videoId}`);
-          const data = await res.json();
-          
-          let streamUrl = '';
-          if (data.formatStreams && data.formatStreams.length > 0) {
-            const stream = data.formatStreams[0];
-            streamUrl = stream.url.startsWith('http') ? stream.url : `${cleanBase}${stream.url}`;
-          } else if (data.adaptiveStreams && data.adaptiveStreams.length > 0) {
-            const stream = data.adaptiveStreams.find(s => s.type.includes('video/mp4')) || data.adaptiveStreams[0];
-            streamUrl = stream.url.startsWith('http') ? stream.url : `${cleanBase}${stream.url}`;
-          } else {
-            throw new Error('No streams available');
-          }
-          
-          logPipDebug(`Assigning resolved stream URL`);
-          proxyVideo.src = streamUrl;
-          proxyVideo.currentTime = savedTime;
-          
-          const playPromise = proxyVideo.play();
-          if (playPromise !== undefined) {
-            playPromise.catch(e => {
-              proxyVideo.muted = true;
-              proxyVideo.play().catch(err => {});
+        logPipDebug(`Assigning server-proxied stream: ${streamUrl}`);
+
+        proxyVideo.src = streamUrl;
+        proxyVideo.currentTime = savedTime;
+        
+        const playPromise = proxyVideo.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(e => {
+            logPipDebug(`Auto-play blocked, muting: ${e.message}`, true);
+            proxyVideo.muted = true;
+            proxyVideo.play().catch(err => {
+              logPipDebug(`Playback error: ${err.message}`, true);
             });
-          }
-          startProxyProgressTracking(proxyVideo);
-        } catch (err) {
-          logPipDebug(`API fetch failed, trying direct proxy: ${err.message}`, true);
-          proxyVideo.src = `${cleanBase}/latest_version?id=${videoId}&itag=18&local=true`;
-          proxyVideo.play().catch(e => {});
+          });
         }
+        startProxyProgressTracking(proxyVideo);
       } else {
         logPipDebug('No proxyUrl configured.');
       }
