@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>ZenTube - Minimalist YouTube with Mutually Exclusive Background Audio Handoff</title>
+  <title>ZenTube - Minimalist YouTube with Clean Background Audio Handoff</title>
   
   <!-- iOS WebApp Meta Tags for Native Feel -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -709,33 +709,31 @@
         logVerbose(`VIDEO ERROR DETECTED -> code: ${err ? err.code : 'unknown'}, message: ${err ? err.message : 'none'}`, 'error');
       });
 
-      // Mutually Exclusive Background Audio Handoff on Visibility Change
+      // Clean, Non-Destructive Background Audio Handoff on Visibility Change
       document.addEventListener('visibilitychange', () => {
         const bgAudio = document.getElementById('bg-audio-fallback');
         logVerbose(`Visibility Change -> hidden: ${document.hidden}, videoPaused: ${video.paused}, audioPaused: ${bgAudio.paused}`);
 
         if (document.hidden && video && !video.paused && activeStreamUrl) {
-          logVerbose('App backgrounded. Severing video socket & handing off to background audio...');
+          logVerbose('App backgrounded. Activating background audio fallback session...');
           const currentTime = video.currentTime;
           
-          video.pause();
-          video.src = ''; // Sever video stream socket completely to prevent duplicate token throttling
+          video.pause(); // Pause video without clearing src to prevent network state errors
           
           bgAudio.src = activeStreamUrl;
           bgAudio.currentTime = currentTime;
           bgAudio.play().then(() => {
-            logVerbose('Background audio fallback socket active & playing.');
+            logVerbose('Background audio fallback playing successfully.');
           }).catch(err => {
             logVerbose(`Background audio fallback error: ${err.message}`, 'error');
           });
         } else if (!document.hidden && bgAudio && !bgAudio.paused) {
-          logVerbose('App foregrounded. Severing audio socket & restoring video player...');
+          logVerbose('App foregrounded. Restoring video player...');
           const currentTime = bgAudio.currentTime;
           
           bgAudio.pause();
-          bgAudio.src = ''; // Sever audio stream socket completely
+          bgAudio.src = '';
           
-          video.src = activeStreamUrl;
           video.currentTime = currentTime;
           video.play().catch(err => {
             logVerbose(`Video resume error: ${err.message}`, 'warn');
