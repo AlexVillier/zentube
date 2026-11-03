@@ -692,7 +692,7 @@
       const events = [
         'loadstart', 'durationchange', 'loadedmetadata', 'loadeddata', 
         'progress', 'canplay', 'canplaythrough', 'play', 'playing', 
-        'pause', 'waiting', 'stalled', 'suspend', 'emptied', 'stalled'
+        'pause', 'waiting', 'stalled', 'suspend', 'emptied'
       ];
 
       events.forEach(eventName => {
@@ -1109,10 +1109,23 @@
           }
 
           if (rawStreamUrl) {
-            let streamUrl = rawStreamUrl.startsWith('http') ? rawStreamUrl : `${proxyUrl}${rawStreamUrl}`;
+            let streamUrl = '';
+            
+            // Rewrite URL to force routing through proxy domain instead of direct googlevideo.com
+            if (rawStreamUrl.includes('googlevideo.com')) {
+              const urlObj = new URL(rawStreamUrl);
+              streamUrl = `${proxyUrl}${urlObj.pathname}${urlObj.search}`;
+              logVerbose('Rewrote googlevideo.com URL to route through proxy domain.');
+            } else if (rawStreamUrl.startsWith('http')) {
+              streamUrl = rawStreamUrl;
+            } else {
+              streamUrl = `${proxyUrl}${rawStreamUrl}`;
+            }
+
+            // Append local=true parameter correctly
             streamUrl = streamUrl.includes('?') ? `${streamUrl}&local=true` : `${streamUrl}?local=true`;
             
-            logVerbose(`Resolved stream URL: ${streamUrl.substring(0, 80)}...`);
+            logVerbose(`Proxied Stream URL: ${streamUrl.substring(0, 80)}...`);
             proxyVideo.src = streamUrl;
             proxyVideo.currentTime = savedTime;
             
