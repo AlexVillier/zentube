@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>ZenTube - Minimalist YouTube with Silent Pre-Warmed Background Audio</title>
+  <title>ZenTube - Adaptive Dual-Stream Architecture</title>
   
   <!-- iOS WebApp Meta Tags for Native Feel -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -689,6 +689,7 @@
 
     function setupVerboseVideoListeners() {
       const video = document.getElementById('proxy-video-player');
+      const bgAudio = document.getElementById('bg-audio-fallback');
       if (!video) return;
 
       const events = [
@@ -699,7 +700,7 @@
 
       events.forEach(eventName => {
         video.addEventListener(eventName, (e) => {
-          if (eventName === 'progress') return; // skip spammy progress events
+          if (eventName === 'progress') return;
           logVerbose(`Video Event: ${eventName} (readyState: ${video.readyState}, networkState: ${video.networkState})`);
         });
       });
@@ -709,32 +710,17 @@
         logVerbose(`VIDEO ERROR DETECTED -> code: ${err ? err.code : 'unknown'}, message: ${err ? err.message : 'none'}`, 'error');
       });
 
-      // Background Audio Handoff using pre-warmed audio element and zero concurrent sockets
+      // Adaptive Dual-Stream Visibility Handoff (Zero Latency)
       document.addEventListener('visibilitychange', () => {
-        const bgAudio = document.getElementById('bg-audio-fallback');
         logVerbose(`Visibility Change -> hidden: ${document.hidden}, userPaused: ${userPaused}, audioPaused: ${bgAudio.paused}`);
 
-        if (document.hidden && !userPaused && activeStreamUrl) {
-          logVerbose('App backgrounded. Switching to pre-warmed audio fallback...');
-          const currentTime = video.currentTime;
-          
+        if (document.hidden && !userPaused) {
+          logVerbose('App backgrounded. Pausing video element; background audio stream continues uninterrupted.');
           video.pause();
-          
-          bgAudio.src = activeStreamUrl;
-          bgAudio.currentTime = currentTime;
-          bgAudio.play().then(() => {
-            logVerbose('Background audio fallback playing successfully.');
-          }).catch(err => {
-            logVerbose(`Background audio error: ${err.message}`, 'error');
-          });
-        } else if (!document.hidden && bgAudio && !bgAudio.paused) {
-          logVerbose('App foregrounded. Restoring video player...');
-          const currentTime = bgAudio.currentTime;
-          
-          bgAudio.pause();
-          bgAudio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
-          
-          video.currentTime = currentTime;
+          // bgAudio continues playing seamlessly in background with zero delay!
+        } else if (!document.hidden && !userPaused && bgAudio) {
+          logVerbose('App foregrounded. Syncing video timeline with audio stream...');
+          video.currentTime = bgAudio.currentTime;
           video.play().catch(err => {
             logVerbose(`Video resume error: ${err.message}`, 'warn');
           });
@@ -742,7 +728,7 @@
       });
     }
 
-    /* Native iOS Audio Session & MediaSession Handlers with Lock-Screen Routing */
+    /* Native iOS Audio Session & MediaSession Handlers with Adaptive Routing */
     function setupBackgroundAudioHandlers() {
       const proxyVideo = document.getElementById('proxy-video-player');
       const bgAudio = document.getElementById('bg-audio-fallback');
@@ -761,17 +747,14 @@
           navigator.mediaSession.setActionHandler('play', () => {
             userPaused = false;
             logVerbose('MediaSession action: play requested');
-            if (document.hidden && bgAudio.src) {
-              bgAudio.play().catch(err => logVerbose(`Lock screen play error: ${err.message}`, 'error'));
-            } else if (proxyVideo) {
-              proxyVideo.play();
-            }
+            bgAudio.play();
+            if (!document.hidden) proxyVideo.play();
           });
           navigator.mediaSession.setActionHandler('pause', () => {
             userPaused = true;
             logVerbose('MediaSession action: pause requested');
-            if (proxyVideo) proxyVideo.pause();
-            if (bgAudio) bgAudio.pause();
+            proxyVideo.pause();
+            bgAudio.pause();
           });
           logVerbose('MediaSession action handlers bound successfully');
         }
@@ -1099,15 +1082,6 @@
       const pipBtn = document.getElementById('pip-btn');
       const bgAudio = document.getElementById('bg-audio-fallback');
       
-      // Synchronously pre-warm background audio using silent data URI within user tap gesture
-      if (bgAudio) {
-        bgAudio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
-        bgAudio.play().then(() => {
-          bgAudio.pause();
-          bgAudio.currentTime = 0;
-        }).catch(() => {});
-      }
-
       modal.classList.remove('docked');
       modal.classList.add('active');
 
@@ -1115,7 +1089,6 @@
       document.getElementById('modal-video-title').textContent = title;
       document.getElementById('modal-channel-title').textContent = channel;
       
-      // Clear terminal for fresh session logs
       const terminal = document.getElementById('debug-terminal');
       if (terminal) terminal.innerHTML = '';
 
@@ -1140,57 +1113,55 @@
           if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
           
           const data = await res.json();
-          logVerbose(`API JSON received. formatStreams count: ${data.formatStreams ? data.formatStreams.length : 0}, adaptiveFormats count: ${data.adaptiveFormats ? data.adaptiveFormats.length : 0}`);
+          logVerbose(`API JSON received. adaptiveFormats count: ${data.adaptiveFormats ? data.adaptiveFormats.length : 0}`);
 
-          let rawStreamUrl = '';
+          let audioStreamUrl = '';
+          let videoStreamUrl = '';
 
-          if (data.formatStreams && data.formatStreams.length > 0) {
-            const mp4Stream = data.formatStreams.find(s => s.container === 'mp4' || s.type?.includes('mp4'));
-            rawStreamUrl = mp4Stream ? mp4Stream.url : data.formatStreams[0].url;
-            logVerbose(`Selected formatStream container: ${mp4Stream ? mp4Stream.container : 'default/first'}`);
-          } else if (data.adaptiveFormats && data.adaptiveFormats.length > 0) {
-            const mp4Adaptive = data.adaptiveFormats.find(f => f.container === 'mp4' && f.type?.includes('video/mp4'));
-            if (mp4Adaptive) rawStreamUrl = mp4Adaptive.url;
-            logVerbose(`Selected adaptiveFormat container: ${mp4Adaptive ? mp4Adaptive.container : 'none'}`);
+          // Filter adaptiveFormats for separate audio-only and video-only streams
+          if (data.adaptiveFormats && data.adaptiveFormats.length > 0) {
+            const audioFormat = data.adaptiveFormats.find(f => f.type && f.type.startsWith('audio/'));
+            const videoFormat = data.adaptiveFormats.find(f => f.type && f.type.startsWith('video/') && f.resolution);
+
+            if (audioFormat && audioFormat.url) {
+              const u = new URL(audioFormat.url.startsWith('http') ? audioFormat.url : `${proxyUrl}${audioFormat.url}`);
+              audioStreamUrl = u.hostname.includes('googlevideo.com') ? `${proxyUrl}${u.pathname}${u.search}` : u.toString();
+              audioStreamUrl = audioStreamUrl.includes('?') ? `${audioStreamUrl}&local=true` : `${audioStreamUrl}?local=true`;
+            }
+
+            if (videoFormat && videoFormat.url) {
+              const u = new URL(videoFormat.url.startsWith('http') ? videoFormat.url : `${proxyUrl}${videoFormat.url}`);
+              videoStreamUrl = u.hostname.includes('googlevideo.com') ? `${proxyUrl}${u.pathname}${u.search}` : u.toString();
+              videoStreamUrl = videoStreamUrl.includes('?') ? `${videoStreamUrl}&local=true` : `${videoStreamUrl}?local=true`;
+            }
           }
 
-          if (rawStreamUrl) {
-            let streamUrl = '';
-            
-            // Rewrite URL to force routing through proxy domain instead of direct googlevideo.com
-            if (rawStreamUrl.includes('googlevideo.com')) {
-              const urlObj = new URL(rawStreamUrl);
-              streamUrl = `${proxyUrl}${urlObj.pathname}${urlObj.search}`;
-              logVerbose('Rewrote googlevideo.com URL to route through proxy domain.');
-            } else if (rawStreamUrl.startsWith('http')) {
-              streamUrl = rawStreamUrl;
-            } else {
-              streamUrl = `${proxyUrl}${rawStreamUrl}`;
-            }
+          if (audioStreamUrl && videoStreamUrl) {
+            activeStreamUrl = audioStreamUrl;
+            logVerbose('Successfully extracted separate audio-only and video-only adaptive streams.');
 
-            // Append local=true parameter correctly
-            streamUrl = streamUrl.includes('?') ? `${streamUrl}&local=true` : `${streamUrl}?local=true`;
-            
-            activeStreamUrl = streamUrl; // Store active stream URL for background audio handoff
-            logVerbose(`Proxied Stream URL: ${streamUrl.substring(0, 80)}...`);
-            proxyVideo.src = streamUrl;
+            proxyVideo.src = videoStreamUrl;
             proxyVideo.currentTime = savedTime;
-            
-            const playPromise = proxyVideo.play();
-            if (playPromise !== undefined) {
-              playPromise.catch(e => {
-                logVerbose(`Auto-play blocked/rejected: ${e.message}. Forcing muted playback fallback.`, 'warn');
-                proxyVideo.muted = true;
-                proxyVideo.play();
-              });
-            }
+
+            bgAudio.src = audioStreamUrl;
+            bgAudio.currentTime = savedTime;
+
+            // Play both concurrently (video-only is silent; audio-only provides sound)
+            Promise.all([proxyVideo.play(), bgAudio.play()]).then(() => {
+              logVerbose('Concurrent adaptive streams playing successfully.');
+            }).catch(e => {
+              logVerbose(`Autoplay restriction: ${e.message}. Forcing muted fallback.`, 'warn');
+              proxyVideo.muted = true;
+              proxyVideo.play();
+              bgAudio.play().catch(() => {});
+            });
+
             startProxyProgressTracking(proxyVideo);
-            logVerbose('proxyVideo.play() executed successfully.');
           } else {
-            throw new Error('No compatible MP4 stream found in JSON response');
+            throw new Error('Could not extract separate adaptive audio/video formats');
           }
         } catch (err) {
-          logVerbose(`Proxy error caught: ${err.message}. Falling back to YouTube iframe.`, 'error');
+          logVerbose(`Adaptive extraction error: ${err.message}. Falling back to iframe.`, 'error');
           pipBtn.style.display = 'none';
           loadIframePlayer(videoId, savedTime);
         }
@@ -1346,7 +1317,7 @@
       const bgAudio = document.getElementById('bg-audio-fallback');
       if (bgAudio) {
         bgAudio.pause();
-        bgAudio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+        bgAudio.src = '';
       }
       const ytContainer = document.getElementById('youtube-player');
       if (ytContainer) {
