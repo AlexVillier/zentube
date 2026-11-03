@@ -567,7 +567,7 @@
     </div>
     <div class="player-container" id="player-container">
       <div id="youtube-player"></div>
-      <video id="proxy-video-player" controls playsinline webkit-playsinline x-webkit-airplay="allow" crossorigin="anonymous" disablepictureinpicture="false"></video>
+      <video id="proxy-video-player" controls playsinline webkit-playsinline x-webkit-airplay="allow" disablepictureinpicture="false"></video>
     </div>
     <div class="player-details">
       <h2 id="modal-video-title" style="font-size: 18px; margin-bottom: 8px;"></h2>
@@ -1062,14 +1062,15 @@
             const mp4Stream = data.formatStreams.find(s => s.container === 'mp4' || s.type?.includes('mp4'));
             rawStreamUrl = mp4Stream ? mp4Stream.url : data.formatStreams[0].url;
           } else if (data.adaptiveFormats && data.adaptiveFormats.length > 0) {
-            const mp4Adaptive = data.adaptiveFormats.find(f => f.container === 'mp4' && f.type?.includes('video'));
+            const mp4Adaptive = data.adaptiveFormats.find(f => f.container === 'mp4' && f.type?.includes('video/mp4'));
             if (mp4Adaptive) rawStreamUrl = mp4Adaptive.url;
           }
 
           if (rawStreamUrl) {
-            const streamUrl = rawStreamUrl.startsWith('http') ? rawStreamUrl : `${proxyUrl}${rawStreamUrl}`;
+            let streamUrl = rawStreamUrl.startsWith('http') ? rawStreamUrl : `${proxyUrl}${rawStreamUrl}`;
+            streamUrl = streamUrl.includes('?') ? `${streamUrl}&local=true` : `${streamUrl}?local=true`;
             
-            logPipDebug('Stream acquired. Loading source...');
+            logPipDebug('Stream resolved. Loading source...');
             proxyVideo.src = streamUrl;
             proxyVideo.currentTime = savedTime;
             
@@ -1084,7 +1085,7 @@
             startProxyProgressTracking(proxyVideo);
             logPipDebug('Proxy stream active & playing.');
           } else {
-            throw new Error('No valid MP4 stream found');
+            throw new Error('No compatible MP4 stream found');
           }
         } catch (err) {
           logPipDebug(`Proxy error: ${err.message}. Fallback to iframe.`);
