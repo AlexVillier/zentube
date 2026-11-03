@@ -3,9 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>ZenTube - Background Audio & Native Language PWA</title>
+  <title>ZenTube - Synchronized Dual-Stream PWA</title>
   
-  <!-- iOS WebApp Meta Tags for Native Feel -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="ZenTube" />
@@ -20,23 +19,16 @@
       --text-primary: #f3f3f5;
       --text-secondary: #8e8e93;
       --accent-color: #ff3b30;
-      --accent-hover: #ff453a;
       --success-color: #30d158;
       --nav-height: 64px;
       --safe-top: env(safe-area-inset-top, 20px);
       --safe-bottom: env(safe-area-inset-bottom, 20px);
     }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      -webkit-tap-highlight-color: transparent;
-      user-select: none;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; user-select: none; }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
       background-color: var(--bg-primary);
       color: var(--text-primary);
       overflow-x: hidden;
@@ -45,459 +37,85 @@
       min-height: 100vh;
     }
 
-    /* Header */
     header {
-      position: sticky;
-      top: 0;
-      z-index: 90;
+      position: sticky; top: 0; z-index: 90;
       background: rgba(13, 13, 14, 0.85);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
       border-bottom: 1px solid var(--border-color);
       padding: 12px 16px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      display: flex; justify-content: space-between; align-items: center;
     }
 
-    .logo-container {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
+    .logo-container { display: flex; align-items: center; gap: 8px; }
+    .logo-icon { width: 24px; height: 24px; background-color: var(--accent-color); border-radius: 6px; display: flex; align-items: center; justify-content: center; }
+    .logo-icon::after { content: ''; border-style: solid; border-width: 5px 0 5px 9px; border-color: transparent transparent transparent #ffffff; margin-left: 2px; }
+    .logo-text { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
 
-    .logo-icon {
-      width: 24px;
-      height: 24px;
-      background-color: var(--accent-color);
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
+    .header-actions { display: flex; align-items: center; gap: 10px; }
+    .icon-btn-header, .auth-btn { background: var(--bg-surface-elevated); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 20px; padding: 8px 14px; font-size: 13px; font-weight: 650; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+    .icon-btn-header { width: 32px; height: 32px; border-radius: 50%; padding: 0; justify-content: center; }
 
-    .logo-icon::after {
-      content: '';
-      border-style: solid;
-      border-width: 5px 0 5px 9px;
-      border-color: transparent transparent transparent #ffffff;
-      margin-left: 2px;
-    }
+    main { padding: 16px; max-width: 800px; margin: 0 auto; }
+    .section-title { font-size: 14px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
 
-    .logo-text {
-      font-size: 18px;
-      font-weight: 700;
-      letter-spacing: -0.5px;
-    }
+    .video-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+    @media (min-width: 600px) { .video-grid { grid-template-columns: repeat(2, 1fr); } }
 
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
+    .video-card { background: var(--bg-surface); border-radius: 16px; overflow: hidden; border: 1px solid var(--border-color); display: flex; flex-direction: column; cursor: pointer; position: relative; }
+    .thumbnail-wrapper { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; }
+    .thumbnail-img { width: 100%; height: 100%; object-fit: cover; }
+    .video-info { padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+    .video-title { font-size: 15px; font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .video-meta { font-size: 13px; color: var(--text-secondary); }
 
-    .icon-btn-header {
-      background: var(--bg-surface-elevated);
-      color: var(--text-primary);
-      border: 1px solid var(--border-color);
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      font-size: 14px;
-    }
+    .player-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(13, 13, 14, 0.98); z-index: 1000; display: none; flex-direction: column; overflow-y: auto; }
+    .player-modal.active { display: flex; }
+    .player-header { padding: calc(var(--safe-top) + 10px) 16px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); background: var(--bg-primary); }
+    .player-actions { display: flex; gap: 8px; align-items: center; }
+    .icon-btn-circle { background: var(--bg-surface-elevated); border: 1px solid var(--border-color); color: var(--text-primary); width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .icon-btn-circle.highlight { background: var(--accent-color); border-color: var(--accent-color); color: #ffffff; }
 
-    .auth-btn {
-      background: var(--bg-surface-elevated);
-      color: var(--text-primary);
-      border: 1px solid var(--border-color);
-      padding: 8px 14px;
-      border-radius: 20px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    /* Main Container */
-    main {
-      padding: 16px;
-      max-width: 800px;
-      margin: 0 auto;
-    }
-
-    .section-title {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text-secondary);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 12px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    /* Video Feed Grid */
-    .video-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 20px;
-    }
-
-    @media (min-width: 600px) {
-      .video-grid {
-        grid-template-columns: repeat(2, 1fr);
-      }
-    }
-
-    .video-card {
-      background: var(--bg-surface);
-      border-radius: 16px;
-      overflow: hidden;
-      border: 1px solid var(--border-color);
-      display: flex;
-      flex-direction: column;
-      cursor: pointer;
-      position: relative;
-    }
-
-    .thumbnail-wrapper {
-      position: relative;
-      width: 100%;
-      aspect-ratio: 16 / 9;
-      background: #000;
-    }
-
-    .thumbnail-img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    /* Watch Progress Badges */
-    .watch-badge {
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      padding: 4px 8px;
-      border-radius: 6px;
-      font-size: 11px;
-      font-weight: 700;
-      color: #fff;
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .watch-badge.completed {
-      background: rgba(48, 209, 88, 0.85);
-    }
-
-    .watch-badge.in-progress {
-      background: rgba(255, 159, 10, 0.85);
-    }
-
-    .progress-bar-container {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      width: 100%;
-      height: 4px;
-      background: rgba(255, 255, 255, 0.2);
-    }
-
-    .progress-bar-fill {
-      height: 100%;
-      background: var(--accent-color);
-    }
-
-    .video-info {
-      padding: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .video-title {
-      font-size: 15px;
-      font-weight: 600;
-      line-height: 1.3;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-    }
-
-    .video-meta {
-      font-size: 13px;
-      color: var(--text-secondary);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    /* Video Player Modal */
-    .player-modal {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(13, 13, 14, 0.98);
-      z-index: 1000;
-      display: none;
-      flex-direction: column;
-      overflow-y: auto;
-    }
-
-    .player-modal.active {
-      display: flex;
-    }
-
-    .player-header {
-      padding: calc(var(--safe-top) + 10px) 16px 12px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid var(--border-color);
-      background: var(--bg-primary);
-    }
-
-    .player-actions {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    }
-
-    .icon-btn-circle {
+    /* Audio Language Selector Dropdown */
+    .audio-select {
       background: var(--bg-surface-elevated);
       border: 1px solid var(--border-color);
       color: var(--text-primary);
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-    }
-
-    .icon-btn-circle.highlight {
-      background: var(--accent-color);
-      border-color: var(--accent-color);
-      color: #ffffff;
-    }
-
-    .player-container {
-      width: 100%;
-      aspect-ratio: 16 / 9;
-      background: #000;
-      position: relative;
-      flex-shrink: 0;
-    }
-
-    #youtube-player {
-      width: 100%;
-      height: 100%;
-      display: none;
-    }
-
-    #proxy-video-player {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      background: #000;
-      display: none;
-    }
-
-    .player-details {
-      padding: 16px;
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    /* Verbose Debug Log Terminal */
-    .debug-terminal {
-      background: #000;
-      border: 1px solid var(--border-color);
-      border-radius: 10px;
-      padding: 10px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 11px;
-      color: #30d158;
-      height: 160px;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      white-space: pre-wrap;
-      word-break: break-all;
-    }
-
-    .debug-terminal .log-entry {
-      border-bottom: 1px solid rgba(255,255,255,0.05);
-      padding-bottom: 2px;
-    }
-    .debug-terminal .log-entry.error {
-      color: #ff453a;
-    }
-    .debug-terminal .log-entry.warn {
-      color: #ffd60a;
-    }
-
-    /* Docked Mini-Player Mode */
-    .player-modal.docked {
-      top: auto;
-      bottom: calc(var(--nav-height) + var(--safe-bottom) + 10px);
-      right: 12px;
-      width: calc(100% - 24px);
-      max-width: 360px;
-      height: auto;
-      max-height: 320px;
-      border-radius: 16px;
-      border: 1px solid var(--border-color);
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
-      background: var(--bg-surface);
-      overflow: hidden;
-    }
-
-    .player-modal.docked .player-header {
-      padding: 8px 12px;
-    }
-
-    .player-modal.docked .player-details {
-      display: none;
-    }
-
-    /* Channels Sub-View Overlay */
-    .channel-detail-view {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: var(--bg-primary);
-      z-index: 500;
-      display: none;
-      flex-direction: column;
-      padding-top: var(--safe-top);
-    }
-
-    .channel-detail-view.active {
-      display: flex;
-    }
-
-    .channel-detail-header {
-      padding: 16px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      border-bottom: 1px solid var(--border-color);
-    }
-
-    /* Bottom Navigation Bar */
-    nav.bottom-nav {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      width: 100%;
-      height: calc(var(--nav-height) + var(--safe-bottom));
-      background: rgba(23, 23, 26, 0.95);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border-top: 1px solid var(--border-color);
-      display: flex;
-      justify-content: space-around;
-      padding-bottom: var(--safe-bottom);
-      z-index: 100;
-    }
-
-    .nav-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      color: var(--text-secondary);
-      font-size: 11px;
-      gap: 4px;
-      cursor: pointer;
-      width: 25%;
-    }
-
-    .nav-item.active {
-      color: var(--text-primary);
-    }
-
-    .nav-icon {
-      font-size: 18px;
-    }
-
-    /* Views */
-    .view {
-      display: none;
-    }
-
-    .view.active {
-      display: block;
-    }
-
-    /* Settings View Inputs */
-    .settings-card {
-      background: var(--bg-surface);
-      border-radius: 16px;
-      padding: 16px;
-      border: 1px solid var(--border-color);
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      margin-bottom: 16px;
-    }
-
-    .input-field {
-      background: var(--bg-primary);
-      border: 1px solid var(--border-color);
-      color: var(--text-primary);
-      padding: 12px;
-      border-radius: 8px;
-      font-size: 14px;
-      width: 100%;
-    }
-
-    .save-btn {
-      background: var(--accent-color);
-      color: #fff;
-      border: none;
-      padding: 12px;
-      border-radius: 8px;
+      padding: 6px 10px;
+      border-radius: 18px;
+      font-size: 12px;
       font-weight: 600;
+      outline: none;
       cursor: pointer;
     }
 
-    .channel-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px;
-      background: var(--bg-surface);
-      border-radius: 12px;
-      border: 1px solid var(--border-color);
-      cursor: pointer;
-    }
+    .player-container { width: 100%; aspect-ratio: 16 / 9; background: #000; position: relative; flex-shrink: 0; }
+    #youtube-player, #proxy-video-player { width: 100%; height: 100%; object-fit: contain; background: #000; display: none; }
+
+    .player-details { padding: 16px; flex: 1; display: flex; flex-direction: column; gap: 12px; }
+    .debug-terminal { background: #000; border: 1px solid var(--border-color); border-radius: 10px; padding: 10px; font-family: monospace; font-size: 11px; color: var(--success-color); height: 160px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; white-space: pre-wrap; word-break: break-all; }
+    .log-entry.error { color: #ff453a; }
+    .log-entry.warn { color: #ffd60a; }
+
+    .player-modal.docked { top: auto; bottom: calc(var(--nav-height) + var(--safe-bottom) + 10px); right: 12px; width: calc(100% - 24px); max-width: 360px; height: auto; max-height: 320px; border-radius: 16px; border: 1px solid var(--border-color); box-shadow: 0 10px 30px rgba(0,0,0,0.8); background: var(--bg-surface); overflow: hidden; }
+    .player-modal.docked .player-header { padding: 8px 12px; }
+    .player-modal.docked .player-details { display: none; }
+
+    nav.bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; height: calc(var(--nav-height) + var(--safe-bottom)); background: rgba(23, 23, 26, 0.95); backdrop-filter: blur(20px); border-top: 1px solid var(--border-color); display: flex; justify-content: space-around; padding-bottom: var(--safe-bottom); z-index: 100; }
+    .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 11px; gap: 4px; cursor: pointer; width: 25%; }
+    .nav-item.active { color: var(--text-primary); }
+    .nav-icon { font-size: 18px; }
+
+    .view { display: none; }
+    .view.active { display: block; }
+    .settings-card { background: var(--bg-surface); border-radius: 16px; padding: 16px; border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+    .input-field { background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); padding: 12px; border-radius: 8px; font-size: 14px; width: 100%; }
+    .save-btn { background: var(--accent-color); color: #fff; border: none; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+    .channel-item { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--bg-surface); border-radius: 12px; border: 1px solid var(--border-color); cursor: pointer; }
   </style>
 </head>
 <body>
 
-  <!-- App Header -->
   <header>
     <div class="logo-container">
       <div class="logo-icon"></div>
@@ -505,15 +123,11 @@
     </div>
     <div class="header-actions">
       <button class="icon-btn-header" onclick="manualRefreshFeed()" title="Refresh Feed">🔄</button>
-      <button class="auth-btn" id="auth-btn" onclick="handleAuthClick()">
-        <span>Sign In</span>
-      </button>
+      <button class="auth-btn" id="auth-btn" onclick="handleAuthClick()"><span>Sign In</span></button>
     </div>
   </header>
 
-  <!-- Main Content Area -->
   <main>
-    <!-- Subscriptions Feed View -->
     <div id="feed-view" class="view active">
       <div class="section-title">
         <span>Subscriptions Feed</span>
@@ -522,7 +136,6 @@
       <div class="video-grid" id="video-grid"></div>
     </div>
 
-    <!-- Channels View -->
     <div id="channels-view" class="view">
       <div class="section-title">Subscribed Channels</div>
       <div id="channels-list" style="display: flex; flex-direction: column; gap: 10px;">
@@ -530,7 +143,6 @@
       </div>
     </div>
 
-    <!-- Search View -->
     <div id="search-view" class="view">
       <div class="section-title">Search YouTube</div>
       <div style="display: flex; gap: 8px; margin-bottom: 16px;">
@@ -540,105 +152,64 @@
       <div class="video-grid" id="search-grid"></div>
     </div>
 
-    <!-- Settings View -->
     <div id="settings-view" class="view">
       <div class="section-title">Settings & Configuration</div>
-      
       <div class="settings-card">
         <label style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">Custom Stream Proxy URL (Invidious API Instance)</label>
         <input type="text" id="proxy-url-input" class="input-field" placeholder="e.g. https://invidious.privacyredirect.com" />
         <button class="save-btn" onclick="saveProxyUrl()">Save Proxy URL</button>
-        <p style="font-size: 11px; color: var(--text-secondary); line-height: 1.3;">Note: Setting an active Invidious proxy URL unlocks direct system HTML5 video rendering and native iOS Safari Picture-in-Picture mode.</p>
       </div>
-
       <div class="settings-card">
         <label style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">Google OAuth Client ID</label>
         <input type="text" id="client-id-input" class="input-field" placeholder="Paste your OAuth Client ID here" />
         <button class="save-btn" onclick="saveClientId()">Save Client ID</button>
       </div>
-
-      <div class="settings-card">
-        <label style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">Watch Data</label>
-        <button class="save-btn" style="background: var(--bg-surface-elevated); border: 1px solid var(--border-color);" onclick="clearWatchHistory()">Clear Watch Progress Data</button>
-      </div>
     </div>
   </main>
 
-  <!-- Channel Detail Overlay -->
-  <div class="channel-detail-view" id="channel-detail-view">
-    <div class="channel-detail-header">
-      <button class="icon-btn-circle" onclick="closeChannelDetail()">←</button>
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <img id="channel-detail-avatar" style="width: 36px; height: 36px; border-radius: 50%;" />
-        <div>
-          <div id="channel-detail-name" style="font-weight: 700; font-size: 15px;"></div>
-          <div style="font-size: 12px; color: var(--text-secondary);">Channel Recent Videos</div>
-        </div>
-      </div>
-    </div>
-    <div style="padding: 16px; overflow-y: auto; flex: 1;">
-      <div class="video-grid" id="channel-videos-grid"></div>
-    </div>
-  </div>
-
-  <!-- Video Player Modal -->
   <div class="player-modal" id="player-modal">
     <div class="player-header">
-      <span class="video-title" id="player-title" style="font-size: 14px;">Playing Video</span>
+      <span class="video-title" id="player-title" style="font-size: 13px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Playing</span>
       <div class="player-actions">
-        <!-- Native System iOS/Desktop PiP Button -->
-        <button class="icon-btn-circle highlight" id="pip-btn" onclick="triggerSystemPip()" title="Trigger iOS / System Picture-in-Picture">
+        <!-- Manual Audio Track Selector -->
+        <select id="audio-lang-select" class="audio-select" onchange="switchAudioTrack(this.value)" title="Switch Audio Track">
+          <option value="">Master Track</option>
+        </select>
+        <button class="icon-btn-circle highlight" id="pip-btn" onclick="triggerSystemPip()" title="Trigger PiP">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><rect x="11" y="9" width="9" height="6" rx="1" fill="currentColor"/></svg>
         </button>
-        <!-- In-App Mini-Player Dock Button -->
-        <button class="icon-btn-circle" onclick="toggleDockPlayer()" title="Dock Mini-Player">
+        <button class="icon-btn-circle" onclick="toggleDockPlayer()" title="Dock">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
         </button>
         <button class="icon-btn-circle" onclick="closePlayer()">✕</button>
       </div>
     </div>
-    <div class="player-container" id="player-container">
+    <div class="player-container">
       <div id="youtube-player"></div>
-      <video id="proxy-video-player" controls playsinline webkit-playsinline x-webkit-airplay="allow" crossorigin="anonymous" disablepictureinpicture="false"></video>
+      <video id="proxy-video-player" controls playsinline webkit-playsinline x-webkit-airplay="allow" crossorigin="anonymous"></video>
       <audio id="bg-audio-fallback" preload="auto" style="display:none;"></audio>
     </div>
     <div class="player-details">
       <h2 id="modal-video-title" style="font-size: 18px; margin-bottom: 4px;"></h2>
       <p id="modal-channel-title" style="color: var(--text-secondary); font-size: 13px; margin-bottom: 8px;"></p>
-      
       <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Live Verbose Debug Terminal</div>
       <div class="debug-terminal" id="debug-terminal">
-        <div class="log-entry">[Init] Terminal ready. Waiting for playback action...</div>
+        <div class="log-entry">[Init] Terminal ready.</div>
       </div>
     </div>
   </div>
 
-  <!-- Bottom Navigation -->
   <nav class="bottom-nav">
-    <div class="nav-item active" onclick="switchTab('feed-view', this)">
-      <div class="nav-icon">📺</div>
-      <span>Feed</span>
-    </div>
-    <div class="nav-item" onclick="switchTab('channels-view', this)">
-      <div class="nav-icon">👥</div>
-      <span>Channels</span>
-    </div>
-    <div class="nav-item" onclick="switchTab('search-view', this)">
-      <div class="nav-icon">🔍</div>
-      <span>Search</span>
-    </div>
-    <div class="nav-item" onclick="switchTab('settings-view', this)">
-      <div class="nav-icon">⚙️</div>
-      <span>Settings</span>
-    </div>
+    <div class="nav-item active" onclick="switchTab('feed-view', this)"><div class="nav-icon">📺</div><span>Feed</span></div>
+    <div class="nav-item" onclick="switchTab('channels-view', this)"><div class="nav-icon">👥</div><span>Channels</span></div>
+    <div class="nav-item" onclick="switchTab('search-view', this)"><div class="nav-icon">🔍</div><span>Search</span></div>
+    <div class="nav-item" onclick="switchTab('settings-view', this)"><div class="nav-icon">⚙️</div><span>Settings</span></div>
   </nav>
 
-  <!-- External Libraries Loaded Safely -->
-  <script src="https://accounts.google.com/gsi/client" async defer onload="onGisLibraryLoad()"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer onload="initGoogleAuth()"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
 
   <script>
-    let ytPlayer = null;
     let tokenClient = null;
     let accessToken = localStorage.getItem('zentube_token') || null;
     let clientId = localStorage.getItem('zentube_client_id') || '';
@@ -650,32 +221,21 @@
     let stallTimeout = null;
     let activeFeedVideos = [];
     let userPaused = false;
-    let activeStreamUrl = '';
     let availableVideoFormats = [];
+    let availableAudioFormats = [];
     let currentQualityIndex = 0;
+    let audioInitialized = false;
 
     const demoVideos = [
-      { id: 'dQw4w9WgXcQ', title: 'Rick Astley - Never Gonna Give You Up', channel: 'Rick Astley', duration: 213, thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg' },
-      { id: 'L_LUpnjgPso', title: 'Official Launch - iOS Design Overview', channel: 'Apple', duration: 600, thumbnail: 'https://i.ytimg.com/vi/L_LUpnjgPso/mqdefault.jpg' }
+      { id: 'dQw4w9WgXcQ', title: 'Rick Astley - Never Gonna Give You Up', channel: 'Rick Astley', duration: 213, thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg' }
     ];
 
     document.addEventListener('DOMContentLoaded', () => {
-      try {
-        const clientInput = document.getElementById('client-id-input');
-        const proxyInput = document.getElementById('proxy-url-input');
-        if (clientInput) clientInput.value = clientId;
-        if (proxyInput) proxyInput.value = proxyUrl;
-
-        renderFeed(demoVideos, 'video-grid');
-        setupVerboseVideoListeners();
-        setupBackgroundAudioHandlers();
-
-        if (window.google && window.google.accounts) {
-          initGoogleAuth();
-        }
-      } catch (e) {
-        console.error('DOM init error:', e);
-      }
+      document.getElementById('client-id-input').value = clientId;
+      document.getElementById('proxy-url-input').value = proxyUrl;
+      renderFeed(demoVideos, 'video-grid');
+      setupVerboseVideoListeners();
+      setupBackgroundAudioHandlers();
     });
 
     function logVerbose(msg, type = 'info') {
@@ -696,78 +256,45 @@
       const bgAudio = document.getElementById('bg-audio-fallback');
       if (!video || !bgAudio) return;
 
-      const events = [
-        'loadstart', 'durationchange', 'loadedmetadata', 'loadeddata', 
-        'progress', 'canplay', 'canplaythrough', 'play', 'playing', 
-        'pause', 'waiting', 'stalled', 'suspend', 'emptied'
-      ];
-
-      events.forEach(eventName => {
-        video.addEventListener(eventName, (e) => {
-          if (eventName === 'progress') return;
-          logVerbose(`Video Event: ${eventName} (readyState: ${video.readyState}, networkState: ${video.networkState})`);
-        });
-      });
-
-      video.addEventListener('error', (e) => {
-        const err = video.error;
-        logVerbose(`VIDEO ERROR DETECTED -> code: ${err ? err.code : 'unknown'}, message: ${err ? err.message : 'none'}`, 'error');
-      });
-
-      // Synchronized Play/Pause Binding & Independent Background Audio Lifecycle
       video.onplay = () => {
         userPaused = false;
-        if (bgAudio.paused) {
-          bgAudio.play().catch(e => logVerbose(`bgAudio play resume error: ${e.message}`, 'warn'));
+        if (audioInitialized && bgAudio.paused && video.readyState >= 3) {
+          bgAudio.play().catch(e => logVerbose(`bgAudio play resume warning: ${e.message}`, 'warn'));
         }
       };
 
       video.onpause = () => {
         userPaused = true;
-        if (!bgAudio.paused) {
-          bgAudio.pause();
-        }
+        if (!bgAudio.paused) bgAudio.pause();
       };
 
-      video.onplaying = () => {
+      video.oncanplay = () => {
         clearStallMonitor();
-      };
-
-      video.onwaiting = () => {
-        startStallMonitor();
-      };
-
-      video.onstalled = () => {
-        startStallMonitor();
-      };
-
-      video.onseeking = () => {
-        bgAudio.currentTime = video.currentTime;
-      };
-
-      video.onseeked = () => {
-        if (!video.paused && !userPaused && bgAudio.paused) {
-          bgAudio.play().catch(() => {});
+        if (!audioInitialized && !userPaused) {
+          audioInitialized = true;
+          bgAudio.currentTime = video.currentTime;
+          bgAudio.play().then(() => {
+            logVerbose('Gated audio stream successfully synchronized & started with video.');
+            startSyncLoop(video, bgAudio);
+          }).catch(e => {
+            logVerbose(`Audio gated start restriction: ${e.message}`, 'warn');
+          });
         }
       };
 
-      // Visibility Handoff & Sync Control
-      document.addEventListener('visibilitychange', () => {
-        logVerbose(`Visibility Change -> hidden: ${document.hidden}, userPaused: ${userPaused}, audioPaused: ${bgAudio.paused}`);
+      video.onseeking = () => { bgAudio.currentTime = video.currentTime; };
+      video.onseeked = () => {
+        if (!video.paused && !userPaused && bgAudio.paused) bgAudio.play().catch(() => {});
+      };
 
+      document.addEventListener('visibilitychange', () => {
         if (document.hidden && !userPaused) {
-          logVerbose('App backgrounded. Pausing video element; background audio stream maintains independent playback.');
           video.pause();
           stopSyncLoop();
-          if (bgAudio.paused) {
-            bgAudio.play().catch(() => {});
-          }
+          if (bgAudio.paused && audioInitialized) bgAudio.play().catch(() => {});
         } else if (!document.hidden && !userPaused) {
-          logVerbose('App foregrounded. Re-syncing video timeline and resuming video...');
           video.currentTime = bgAudio.currentTime;
-          video.play().catch(err => {
-            logVerbose(`Video resume error: ${err.message}`, 'warn');
-          });
+          video.play().catch(() => {});
           startSyncLoop(video, bgAudio);
         }
       });
@@ -781,14 +308,12 @@
           const newFormat = availableVideoFormats[currentQualityIndex];
           const proxyVideo = document.getElementById('proxy-video-player');
           const savedTime = proxyVideo.currentTime;
-
           let newUrl = newFormat.url.startsWith('http') ? newFormat.url : `${proxyUrl}${newFormat.url}`;
           if (newUrl.includes('googlevideo.com')) {
             const u = new URL(newUrl);
             newUrl = `${proxyUrl}${u.pathname}${u.search}`;
           }
           newUrl = newUrl.includes('?') ? `${newUrl}&local=true` : `${newUrl}?local=true`;
-
           logVerbose(`Network stall detected. Adapting quality down to: ${newFormat.qualityLabel || newFormat.height + 'p'}`, 'warn');
           proxyVideo.src = newUrl;
           proxyVideo.currentTime = savedTime;
@@ -798,10 +323,7 @@
     }
 
     function clearStallMonitor() {
-      if (stallTimeout) {
-        clearTimeout(stallTimeout);
-        stallTimeout = null;
-      }
+      if (stallTimeout) { clearTimeout(stallTimeout); stallTimeout = null; }
     }
 
     function startSyncLoop(videoEl, audioEl) {
@@ -809,17 +331,12 @@
       syncInterval = setInterval(() => {
         if (!videoEl || !audioEl || videoEl.paused || audioEl.paused || document.hidden) return;
         const drift = Math.abs(videoEl.currentTime - audioEl.currentTime);
-        
         if (drift > 0.8) {
           logVerbose(`Sync drift detected: ${drift.toFixed(3)}s. Realigning audio.`);
           audioEl.currentTime = videoEl.currentTime;
           audioEl.playbackRate = 1.0;
         } else if (drift > 0.2) {
-          if (videoEl.currentTime > audioEl.currentTime) {
-            audioEl.playbackRate = 1.05;
-          } else {
-            audioEl.playbackRate = 0.95;
-          }
+          audioEl.playbackRate = (videoEl.currentTime > audioEl.currentTime) ? 1.05 : 0.95;
         } else {
           audioEl.playbackRate = 1.0;
         }
@@ -827,676 +344,202 @@
     }
 
     function stopSyncLoop() {
-      if (syncInterval) {
-        clearInterval(syncInterval);
-        syncInterval = null;
-      }
+      if (syncInterval) { clearInterval(syncInterval); syncInterval = null; }
       const bgAudio = document.getElementById('bg-audio-fallback');
       if (bgAudio) bgAudio.playbackRate = 1.0;
     }
 
     function setupBackgroundAudioHandlers() {
-      const proxyVideo = document.getElementById('proxy-video-player');
-      const bgAudio = document.getElementById('bg-audio-fallback');
-
       try {
-        if (navigator.audioSession) {
-          navigator.audioSession.type = 'playback';
-          logVerbose('AudioSession API configured: playback');
-        }
-      } catch (e) {
-        logVerbose(`AudioSession warning: ${e.message}`, 'warn');
-      }
-
-      try {
+        if (navigator.audioSession) navigator.audioSession.type = 'playback';
         if ('mediaSession' in navigator) {
           navigator.mediaSession.setActionHandler('play', () => {
             userPaused = false;
-            logVerbose('MediaSession action: play requested');
-            bgAudio.play();
-            if (!document.hidden) proxyVideo.play();
+            document.getElementById('bg-audio-fallback').play();
+            if (!document.hidden) document.getElementById('proxy-video-player').play();
           });
           navigator.mediaSession.setActionHandler('pause', () => {
             userPaused = true;
-            logVerbose('MediaSession action: pause requested');
-            proxyVideo.pause();
-            bgAudio.pause();
+            document.getElementById('proxy-video-player').pause();
+            document.getElementById('bg-audio-fallback').pause();
           });
-          logVerbose('MediaSession action handlers bound successfully');
         }
-      } catch (err) {
-        logVerbose(`MediaSession warning: ${err.message}`, 'warn');
-      }
+      } catch (e) {}
     }
 
     function updateMediaSessionMetadata(title, channel, thumbnail) {
-      try {
-        if ('mediaSession' in navigator) {
-          navigator.mediaSession.metadata = new MediaMetadata({
-            title: title,
-            artist: channel,
-            album: 'ZenTube',
-            artwork: [
-              { src: thumbnail, sizes: '512x512', type: 'image/jpeg' }
-            ]
-          });
-          logVerbose(`MediaSession metadata updated for: ${title}`);
-        }
-      } catch (err) {
-        logVerbose(`Metadata warning: ${err.message}`, 'warn');
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({ title, artist: channel, album: 'ZenTube', artwork: [{ src: thumbnail, sizes: '512x512', type: 'image/jpeg' }] });
       }
-    }
-
-    function onGisLibraryLoad() {
-      initGoogleAuth();
-    }
-
-    function onYouTubeIframeAPIReady() {}
-
-    function initGoogleAuth() {
-      if (!clientId || !window.google || !window.google.accounts || !window.google.accounts.oauth2) return;
-
-      try {
-        tokenClient = google.accounts.oauth2.initTokenClient({
-          client_id: clientId,
-          scope: 'https://www.googleapis.com/auth/youtube.readonly',
-          callback: (response) => {
-            if (response && response.access_token) {
-              accessToken = response.access_token;
-              localStorage.setItem('zentube_token', accessToken);
-              updateAuthUI(true);
-              fetchSubscribedChannelsFeed();
-            }
-          },
-        });
-
-        if (accessToken) {
-          fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${accessToken}`)
-            .then(res => {
-              if (res.ok) {
-                updateAuthUI(true);
-                fetchSubscribedChannelsFeed();
-              } else if (tokenClient) {
-                tokenClient.requestAccessToken({ prompt: 'none' });
-              }
-            })
-            .catch(() => {
-              if (tokenClient) tokenClient.requestAccessToken({ prompt: 'none' });
-            });
-        }
-      } catch (err) {
-        console.warn('Google Auth init warning:', err);
-      }
-    }
-
-    function handleAuthClick() {
-      if (accessToken) {
-        accessToken = null;
-        localStorage.removeItem('zentube_token');
-        updateAuthUI(false);
-        renderFeed(demoVideos, 'video-grid');
-      } else if (tokenClient) {
-        tokenClient.requestAccessToken({ prompt: '' });
-      } else {
-        alert('Please save your OAuth Client ID in Settings first.');
-        switchTab('settings-view', document.querySelector('.nav-item:nth-child(4)'));
-      }
-    }
-
-    function updateAuthUI(isSignedIn) {
-      const btn = document.getElementById('auth-btn');
-      const status = document.getElementById('sync-status');
-      if (!btn || !status) return;
-
-      if (isSignedIn) {
-        btn.innerHTML = '<span>Sign Out</span>';
-        status.textContent = 'Synced with Subscriptions';
-        status.style.color = 'var(--success-color)';
-      } else {
-        btn.innerHTML = '<span>Sign In</span>';
-        status.textContent = 'Demo Mode';
-        status.style.color = 'var(--text-secondary)';
-      }
-    }
-
-    function saveClientId() {
-      const input = document.getElementById('client-id-input');
-      if (!input) return;
-      const val = input.value.trim();
-      if (val) {
-        clientId = val;
-        localStorage.setItem('zentube_client_id', clientId);
-        initGoogleAuth();
-        alert('Client ID Saved!');
-      }
-    }
-
-    function saveProxyUrl() {
-      const input = document.getElementById('proxy-url-input');
-      if (!input) return;
-      const val = input.value.trim().replace(/\/$/, '');
-      proxyUrl = val;
-      localStorage.setItem('zentube_proxy_url', proxyUrl);
-      alert('Proxy URL Saved!');
-    }
-
-    function manualRefreshFeed() {
-      if (accessToken) {
-        fetchSubscribedChannelsFeed();
-      } else {
-        renderFeed(demoVideos, 'video-grid');
-      }
-    }
-
-    async function fetchSubscribedChannelsFeed() {
-      if (!accessToken) return;
-      try {
-        const syncStatus = document.getElementById('sync-status');
-        if (syncStatus) syncStatus.textContent = 'Updating Feed...';
-        
-        const subRes = await fetch('https://www.googleapis.com/youtube/v3/subscriptions?mine=true&part=snippet,contentDetails&maxResults=15', {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        });
-        const subData = await subRes.json();
-
-        if (!subData.items || subData.items.length === 0) {
-          renderFeed(demoVideos, 'video-grid');
-          return;
-        }
-
-        renderChannelsList(subData.items);
-
-        let allVideos = [];
-        
-        for (const sub of subData.items) {
-          try {
-            const channelId = sub.snippet.resourceId.channelId;
-            const channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?id=${channelId}&part=contentDetails`, {
-              headers: { Authorization: `Bearer ${accessToken}` }
-            });
-            const channelData = await channelRes.json();
-
-            if (channelData.items && channelData.items.length > 0) {
-              const uploadsPlaylistId = channelData.items[0].contentDetails.relatedPlaylists.uploads;
-
-              const playlistRes = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?playlistId=${uploadsPlaylistId}&part=snippet&maxResults=3`, {
-                headers: { Authorization: `Bearer ${accessToken}` }
-              });
-              const playlistData = await playlistRes.json();
-
-              if (playlistData.items) {
-                playlistData.items.forEach(item => {
-                  const thumbnails = item.snippet.thumbnails;
-                  const thumbUrl = thumbnails.medium ? thumbnails.medium.url : (thumbnails.default ? thumbnails.default.url : '');
-                  allVideos.push({
-                    id: item.snippet.resourceId.videoId,
-                    title: item.snippet.title,
-                    channel: item.snippet.channelTitle,
-                    thumbnail: thumbUrl,
-                    publishedAt: new Date(item.snippet.publishedAt)
-                  });
-                });
-              }
-            }
-          } catch (innerErr) {
-            console.warn('Skipping channel playlist due to error:', innerErr);
-          }
-        }
-
-        allVideos.sort((a, b) => b.publishedAt - a.publishedAt);
-        
-        if (allVideos.length > 0) {
-          activeFeedVideos = allVideos;
-          renderFeed(activeFeedVideos, 'video-grid');
-        } else {
-          renderFeed(demoVideos, 'video-grid');
-        }
-
-        if (syncStatus) {
-          syncStatus.textContent = 'Live Feed';
-          syncStatus.style.color = 'var(--success-color)';
-        }
-
-      } catch (err) {
-        console.error('Error fetching subscriptions feed:', err);
-        const syncStatus = document.getElementById('sync-status');
-        if (syncStatus) syncStatus.textContent = 'Sync Error';
-        renderFeed(demoVideos, 'video-grid');
-      }
-    }
-
-    function renderChannelsList(channels) {
-      const list = document.getElementById('channels-list');
-      if (!list) return;
-      list.innerHTML = '';
-      channels.forEach(item => {
-        const snippet = item.snippet;
-        const channelId = snippet.resourceId.channelId;
-        const thumbUrl = snippet.thumbnails?.default?.url || '';
-        const div = document.createElement('div');
-        div.className = 'channel-item';
-        div.onclick = () => openChannelDetail(channelId, snippet.title, thumbUrl);
-        div.innerHTML = `
-          <img src="${thumbUrl}" style="width: 40px; height: 40px; border-radius: 50%;" />
-          <div>
-            <div style="font-weight: 600; font-size: 14px;">${snippet.title}</div>
-            <div style="font-size: 12px; color: var(--text-secondary);">Tap to view recent uploads</div>
-          </div>
-        `;
-        list.appendChild(div);
-      });
-    }
-
-    async function openChannelDetail(channelId, channelTitle, avatarUrl) {
-      document.getElementById('channel-detail-name').textContent = channelTitle;
-      document.getElementById('channel-detail-avatar').src = avatarUrl;
-      const grid = document.getElementById('channel-videos-grid');
-      grid.innerHTML = '<p style="color: var(--text-secondary);">Loading channel videos...</p>';
-      document.getElementById('channel-detail-view').classList.add('active');
-
-      try {
-        const channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?id=${channelId}&part=contentDetails`, {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        });
-        const channelData = await channelRes.json();
-
-        if (channelData.items && channelData.items.length > 0) {
-          const uploadsPlaylistId = channelData.items[0].contentDetails.relatedPlaylists.uploads;
-          const playlistRes = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?playlistId=${uploadsPlaylistId}&part=snippet&maxResults=15`, {
-            headers: { Authorization: `Bearer ${accessToken}` }
-          });
-          const playlistData = await playlistRes.json();
-
-          if (playlistData.items) {
-            const videos = playlistData.items.map(item => ({
-              id: item.snippet.resourceId.videoId,
-              title: item.snippet.title,
-              channel: item.snippet.channelTitle,
-              thumbnail: item.snippet.thumbnails.medium ? item.snippet.thumbnails.medium.url : item.snippet.thumbnails.default.url
-            }));
-            renderFeed(videos, 'channel-videos-grid');
-          }
-        }
-      } catch (err) {
-        grid.innerHTML = '<p style="color: var(--text-secondary);">Unable to load channel uploads.</p>';
-      }
-    }
-
-    function closeChannelDetail() {
-      document.getElementById('channel-detail-view').classList.remove('active');
-    }
-
-    async function executeSearch() {
-      const query = document.getElementById('search-input').value.trim();
-      if (!query) return;
-      const grid = document.getElementById('search-grid');
-      grid.innerHTML = '<p style="color: var(--text-secondary);">Searching...</p>';
-
-      try {
-        const res = await fetch(`https://www.googleapis.com/youtube/v3/search?q=${encodeURIComponent(query)}&part=snippet&type=video&maxResults=12`, {
-          headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
-        });
-        const data = await res.json();
-        if (data.items) {
-          const results = data.items.map(item => ({
-            id: item.id.videoId,
-            title: item.snippet.title,
-            channel: item.snippet.channelTitle,
-            thumbnail: item.snippet.thumbnails.medium ? item.snippet.thumbnails.medium.url : item.snippet.thumbnails.default.url
-          }));
-          renderFeed(results, 'search-grid');
-        }
-      } catch (err) {
-        grid.innerHTML = '<p style="color: var(--text-secondary);">Search failed. Verify connection or OAuth configuration.</p>';
-      }
-    }
-
-    function renderFeed(videos, containerId) {
-      const grid = document.getElementById(containerId);
-      if (!grid) return;
-      
-      const feedToRender = (!videos || videos.length === 0) ? demoVideos : videos;
-      grid.innerHTML = '';
-
-      feedToRender.forEach(v => {
-        const prog = watchProgress[v.id] || { currentTime: 0, duration: v.duration || 0 };
-        const percent = prog.duration ? Math.min(100, Math.round((prog.currentTime / prog.duration) * 100)) : 0;
-        
-        let badgeHTML = '';
-        if (percent >= 90) {
-          badgeHTML = `<div class="watch-badge completed">✓ Watched</div>`;
-        } else if (percent > 5) {
-          badgeHTML = `<div class="watch-badge in-progress">${percent}%</div>`;
-        }
-
-        const card = document.createElement('div');
-        card.className = 'video-card';
-        card.onclick = () => openPlayer(v.id, v.title, v.channel, v.thumbnail);
-        card.innerHTML = `
-          <div class="thumbnail-wrapper">
-            <img class="thumbnail-img" src="${v.thumbnail}" alt="${v.title}" />
-            ${badgeHTML}
-            ${percent > 0 && percent < 90 ? `<div class="progress-bar-container"><div class="progress-bar-fill" style="width: ${percent}%;"></div></div>` : ''}
-          </div>
-          <div class="video-info">
-            <div class="video-title">${v.title}</div>
-            <div class="video-meta">${v.channel}</div>
-          </div>
-        `;
-        grid.appendChild(card);
-      });
     }
 
     async function openPlayer(videoId, title, channel, thumbnail = '') {
       currentVideoId = videoId;
       userPaused = false;
+      audioInitialized = false;
       currentQualityIndex = 0;
       clearStallMonitor();
 
       const modal = document.getElementById('player-modal');
-      const pipBtn = document.getElementById('pip-btn');
-      const bgAudio = document.getElementById('bg-audio-fallback');
-      
       modal.classList.remove('docked');
       modal.classList.add('active');
-
       document.getElementById('player-title').textContent = title;
       document.getElementById('modal-video-title').textContent = title;
       document.getElementById('modal-channel-title').textContent = channel;
-      
-      const terminal = document.getElementById('debug-terminal');
-      if (terminal) terminal.innerHTML = '';
+      document.getElementById('debug-terminal').innerHTML = '';
 
       logVerbose(`Opening player for videoId: ${videoId}`);
       updateMediaSessionMetadata(title, channel, thumbnail || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`);
 
       const savedTime = watchProgress[videoId] ? watchProgress[videoId].currentTime : 0;
-      const ytContainer = document.getElementById('youtube-player');
       const proxyVideo = document.getElementById('proxy-video-player');
+      const bgAudio = document.getElementById('bg-audio-fallback');
 
       if (proxyUrl) {
-        ytContainer.style.display = 'none';
         proxyVideo.style.display = 'block';
-        pipBtn.style.display = 'flex';
-
-        logVerbose(`Fetching Invidious API metadata from: ${proxyUrl}/api/v1/videos/${videoId}`);
-
         try {
           const res = await fetch(`${proxyUrl}/api/v1/videos/${videoId}`);
-          logVerbose(`API Response status: ${res.status} ${res.statusText}`);
-          
-          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-          
           const data = await res.json();
-          logVerbose(`API JSON received. adaptiveFormats count: ${data.adaptiveFormats ? data.adaptiveFormats.length : 0}`);
 
-          let audioStreamUrl = '';
-          let videoStreamUrl = '';
-
-          if (data.adaptiveFormats && data.adaptiveFormats.length > 0) {
-            const filteredAudio = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('audio/'));
-            
-            filteredAudio.sort((a, b) => {
+          if (data.adaptiveFormats) {
+            availableAudioFormats = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('audio/'));
+            availableAudioFormats.sort((a, b) => {
               const langA = (a.languageCode || '').toLowerCase();
               const langB = (b.languageCode || '').toLowerCase();
-              const isOrigA = a.isOriginal === true || !langA || langA === 'en' || langA.startsWith('en-');
-              const isOrigB = b.isOriginal === true || !langB || langB === 'en' || langB.startsWith('en-');
-              
-              const isDubA = langA.includes('dub') || a.qualityLabel?.includes('dub');
-              const isDubB = langB.includes('dub') || b.qualityLabel?.includes('dub');
-
+              const isDubA = langA.includes('dub') || langA.includes('es') || langA.includes('fr') || langA.includes('de');
+              const isDubB = langB.includes('dub') || langB.includes('es') || langB.includes('fr') || langB.includes('de');
               if (isDubA && !isDubB) return 1;
               if (isDubB && !isDubA) return -1;
-              if (isOrigA && !isOrigB) return -1;
-              if (isOrigB && !isOrigA) return 1;
               return (b.bitrate || 0) - (a.bitrate || 0);
             });
-            const audioFormat = filteredAudio[0];
 
+            // Populate Audio Language Selector Dropdown
+            const selectEl = document.getElementById('audio-lang-select');
+            selectEl.innerHTML = '';
+            availableAudioFormats.forEach((fmt, index) => {
+              const opt = document.createElement('option');
+              opt.value = index;
+              opt.textContent = `${fmt.languageCode || 'Master'} (${Math.round((fmt.bitrate || 0) / 1000)}kbps)`;
+              selectEl.appendChild(opt);
+            });
+
+            const audioFormat = availableAudioFormats[0];
             availableVideoFormats = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('video/') && (f.height || f.qualityLabel));
-            availableVideoFormats.sort((a, b) => {
-              const hA = a.height || parseInt(a.qualityLabel) || 0;
-              const hB = b.height || parseInt(b.qualityLabel) || 0;
-              return hB - hA;
-            });
-            
-            const videoFormat = availableVideoFormats[0] || data.adaptiveFormats.find(f => f.type && f.type.startsWith('video/'));
+            availableVideoFormats.sort((a, b) => (b.height || parseInt(b.qualityLabel) || 0) - (a.height || parseInt(a.qualityLabel) || 0));
+            const videoFormat = availableVideoFormats[0];
 
-            if (audioFormat && audioFormat.url) {
-              const u = new URL(audioFormat.url.startsWith('http') ? audioFormat.url : `${proxyUrl}${audioFormat.url}`);
-              audioStreamUrl = u.hostname.includes('googlevideo.com') ? `${proxyUrl}${u.pathname}${u.search}` : u.toString();
-              audioStreamUrl = audioStreamUrl.includes('?') ? `${audioStreamUrl}&local=true` : `${audioStreamUrl}?local=true`;
-              logVerbose(`Selected Original Master Audio (Lang: ${audioFormat.languageCode || 'default'}, Bitrate: ${audioFormat.bitrate || 'unknown'})`);
-            }
-
-            if (videoFormat && videoFormat.url) {
-              const u = new URL(videoFormat.url.startsWith('http') ? videoFormat.url : `${proxyUrl}${videoFormat.url}`);
-              videoStreamUrl = u.hostname.includes('googlevideo.com') ? `${proxyUrl}${u.pathname}${u.search}` : u.toString();
-              videoStreamUrl = videoStreamUrl.includes('?') ? `${videoStreamUrl}&local=true` : `${videoStreamUrl}?local=true`;
-              const resLabel = videoFormat.qualityLabel || (videoFormat.height ? videoFormat.height + 'p' : 'HD');
-              logVerbose(`Selected Target Video Resolution: ${resLabel}`);
+            if (audioFormat && videoFormat) {
+              loadAudioAndVideoStreams(audioFormat, videoFormat, savedTime);
+              return;
             }
           }
-
-          if (audioStreamUrl && videoStreamUrl) {
-            activeStreamUrl = audioStreamUrl;
-            logVerbose('Successfully extracted high-definition video and master audio adaptive streams.');
-
-            proxyVideo.src = videoStreamUrl;
-            proxyVideo.currentTime = savedTime;
-
-            bgAudio.src = audioStreamUrl;
-            bgAudio.currentTime = savedTime;
-
-            Promise.all([
-              proxyVideo.play().catch(e => { logVerbose(`Video autoplay restriction: ${e.message}`, 'warn'); proxyVideo.muted = true; return proxyVideo.play(); }),
-              bgAudio.play().catch(e => logVerbose(`Audio background play restriction: ${e.message}`, 'warn'))
-            ]).then(() => {
-              logVerbose('Concurrent adaptive streams active. Starting sync loop.');
-              startSyncLoop(proxyVideo, bgAudio);
-            });
-
-            startProxyProgressTracking(proxyVideo);
-          } else {
-            throw new Error('Could not extract separate adaptive streams');
-          }
+          throw new Error('Adaptive streams unavailable');
         } catch (err) {
-          logVerbose(`Adaptive extraction error: ${err.message}. Falling back to iframe.`, 'error');
-          pipBtn.style.display = 'none';
-          loadIframePlayer(videoId, savedTime);
+          logVerbose(`Stream extraction error: ${err.message}`, 'error');
         }
-      } else {
-        logVerbose('No proxyUrl configured in settings. Loading YouTube iframe player.');
-        pipBtn.style.display = 'none';
-        loadIframePlayer(videoId, savedTime);
       }
     }
 
-    function loadIframePlayer(videoId, savedTime) {
-      logVerbose(`Loading iframe player for videoId: ${videoId} at ${savedTime}s`);
-      const ytContainer = document.getElementById('youtube-player');
+    function loadAudioAndVideoStreams(audioFormat, videoFormat, savedTime) {
       const proxyVideo = document.getElementById('proxy-video-player');
-      proxyVideo.style.display = 'none';
-      ytContainer.style.display = 'block';
+      const bgAudio = document.getElementById('bg-audio-fallback');
 
-      if (typeof YT !== 'undefined' && YT.Player) {
-        if (!ytPlayer) {
-          ytPlayer = new YT.Player('youtube-player', {
-            videoId: videoId,
-            playerVars: {
-              autoplay: 1,
-              start: Math.floor(savedTime),
-              playsinline: 1,
-              modestbranding: 1
-            },
-            events: {
-              'onStateChange': onPlayerStateChange
-            }
-          });
-        } else {
-          ytPlayer.loadVideoById({ videoId: videoId, startSeconds: Math.floor(savedTime) });
-        }
+      let audioUrl = audioFormat.url.startsWith('http') ? audioFormat.url : `${proxyUrl}${audioFormat.url}`;
+      if (audioUrl.includes('googlevideo.com')) {
+        const u = new URL(audioUrl);
+        audioUrl = `${proxyUrl}${u.pathname}${u.search}`;
       }
+      audioUrl += (audioUrl.includes('?') ? '&' : '?') + 'local=true';
 
-      startIframeProgressTracking();
+      let videoUrl = videoFormat.url.startsWith('http') ? videoFormat.url : `${proxyUrl}${videoFormat.url}`;
+      if (videoUrl.includes('googlevideo.com')) {
+        const u = new URL(videoUrl);
+        videoUrl = `${proxyUrl}${u.pathname}${u.search}`;
+      }
+      videoUrl += (videoUrl.includes('?') ? '&' : '?') + 'local=true';
+
+      logVerbose(`Selected Audio Track (Lang: ${audioFormat.languageCode || 'default'}, Bitrate: ${audioFormat.bitrate})`);
+      
+      const currentVidTime = proxyVideo.currentTime || savedTime;
+      proxyVideo.src = videoUrl;
+      proxyVideo.currentTime = currentVidTime;
+      bgAudio.src = audioUrl;
+      bgAudio.currentTime = currentVidTime;
+
+      proxyVideo.play().catch(e => {
+        logVerbose(`Video autoplay restricted, forcing muted: ${e.message}`, 'warn');
+        proxyVideo.muted = true;
+        proxyVideo.play();
+      });
     }
 
-    function triggerSystemPip() {
+    function switchAudioTrack(indexStr) {
+      const index = parseInt(indexStr, 10);
+      if (isNaN(index) || !availableAudioFormats[index]) return;
+      const selectedAudio = availableAudioFormats[index];
       const proxyVideo = document.getElementById('proxy-video-player');
-      if (!proxyVideo) {
-        logVerbose('PiP Error: #proxy-video-player not found.', 'error');
-        return;
+      const bgAudio = document.getElementById('bg-audio-fallback');
+
+      logVerbose(`Manually switching audio track to index ${index} (Lang: ${selectedAudio.languageCode || 'default'})`);
+      
+      let audioUrl = selectedAudio.url.startsWith('http') ? selectedAudio.url : `${proxyUrl}${selectedAudio.url}`;
+      if (audioUrl.includes('googlevideo.com')) {
+        const u = new URL(audioUrl);
+        audioUrl = `${proxyUrl}${u.pathname}${u.search}`;
       }
+      audioUrl += (audioUrl.includes('?') ? '&' : '?') + 'local=true';
 
-      logVerbose(`Triggering PiP... paused=${proxyVideo.paused}, readyState=${proxyVideo.readyState}`);
-
-      try {
-        proxyVideo.style.display = 'block';
-
-        if (proxyVideo.paused) {
-          userPaused = false;
-          proxyVideo.play();
-        }
-
-        if (typeof proxyVideo.webkitSetPresentationMode === 'function') {
-          const currentMode = proxyVideo.webkitPresentationMode;
-          logVerbose(`webkitMode current: ${currentMode}`);
-          const targetMode = (currentMode === 'picture-in-picture') ? 'inline' : 'picture-in-picture';
-          proxyVideo.webkitSetPresentationMode(targetMode);
-          logVerbose(`Requested webkitMode: ${targetMode}`);
-          return;
-        }
-
-        if (document.pictureInPictureElement) {
-          document.exitPictureInPicture();
-          logVerbose('Exited W3C PiP.');
-        } else if (document.pictureInPictureEnabled && typeof proxyVideo.requestPictureInPicture === 'function') {
-          proxyVideo.requestPictureInPicture();
-          logVerbose('Requested W3C PiP.');
-        } else {
-          logVerbose('PiP Error: Picture-in-Picture not supported by environment.', 'error');
-          alert('Picture-in-Picture is not supported by your current browser environment.');
-        }
-      } catch (err) {
-        logVerbose(`PiP Exception: ${err.message}`, 'error');
-      }
-    }
-
-    function onPlayerStateChange(event) {
-      if (typeof YT !== 'undefined' && event.data === YT.PlayerState.PLAYING) {
-        startIframeProgressTracking();
-      } else if (typeof YT !== 'undefined' && event.data === YT.PlayerState.ENDED) {
-        stopProgressTracking();
-        stopSyncLoop();
-        clearStallMonitor();
-        if (currentVideoId && ytPlayer && ytPlayer.getDuration) {
-          const duration = ytPlayer.getDuration();
-          watchProgress[currentVideoId] = { currentTime: duration, duration: duration, updatedAt: Date.now() };
-          localStorage.setItem('zentube_watch_progress', JSON.stringify(watchProgress));
-          updateCurrentFeedUI();
-        }
-      } else {
-        stopProgressTracking();
-      }
-    }
-
-    function startIframeProgressTracking() {
-      stopProgressTracking();
-      progressInterval = setInterval(() => {
-        if (ytPlayer && ytPlayer.getCurrentTime && currentVideoId) {
-          const currentTime = ytPlayer.getCurrentTime();
-          const duration = ytPlayer.getDuration();
-          if (duration > 0) {
-            watchProgress[currentVideoId] = { currentTime, duration, updatedAt: Date.now() };
-            localStorage.setItem('zentube_watch_progress', JSON.stringify(watchProgress));
-            updateCurrentFeedUI();
-          }
-        }
-      }, 3000);
-    }
-
-    function startProxyProgressTracking(videoEl) {
-      stopProgressTracking();
-      progressInterval = setInterval(() => {
-        if (videoEl && currentVideoId) {
-          const currentTime = videoEl.currentTime;
-          const duration = videoEl.duration;
-          if (duration > 0) {
-            watchProgress[currentVideoId] = { currentTime, duration, updatedAt: Date.now() };
-            localStorage.setItem('zentube_watch_progress', JSON.stringify(watchProgress));
-            if (currentTime >= duration - 1) {
-              updateCurrentFeedUI();
-            }
-          }
-        }
-      }, 3000);
-    }
-
-    function stopProgressTracking() {
-      if (progressInterval) clearInterval(progressInterval);
-    }
-
-    function updateCurrentFeedUI() {
-      if (activeFeedVideos.length > 0) {
-        renderFeed(activeFeedVideos, 'video-grid');
-      } else {
-        renderFeed(demoVideos, 'video-grid');
+      const currentTime = proxyVideo.currentTime;
+      bgAudio.src = audioUrl;
+      bgAudio.currentTime = currentTime;
+      if (!userPaused) {
+        bgAudio.play().catch(() => {});
       }
     }
 
     function closePlayer() {
-      logVerbose('Closing player modal and stopping playback');
-      stopProgressTracking();
       stopSyncLoop();
       clearStallMonitor();
       userPaused = true;
-      activeStreamUrl = '';
-      if (ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
+      audioInitialized = false;
       const proxyVideo = document.getElementById('proxy-video-player');
-      if (proxyVideo) {
-        proxyVideo.pause();
-        proxyVideo.src = '';
-        proxyVideo.style.display = 'none';
-      }
       const bgAudio = document.getElementById('bg-audio-fallback');
-      if (bgAudio) {
-        bgAudio.pause();
-        bgAudio.src = '';
-      }
-      const ytContainer = document.getElementById('youtube-player');
-      if (ytContainer) {
-        ytContainer.style.display = 'none';
-      }
-      
-      const modal = document.getElementById('player-modal');
-      if (modal) modal.classList.remove('active', 'docked');
-      updateCurrentFeedUI();
+      if (proxyVideo) { proxyVideo.pause(); proxyVideo.src = ''; proxyVideo.style.display = 'none'; }
+      if (bgAudio) { bgAudio.pause(); bgAudio.src = ''; }
+      document.getElementById('player-modal').classList.remove('active', 'docked');
     }
 
-    function toggleDockPlayer() {
-      const modal = document.getElementById('player-modal');
-      if (modal) modal.classList.toggle('docked');
-    }
-
-    function clearWatchHistory() {
-      if (confirm('Clear all local watch progress data?')) {
-        watchProgress = {};
-        localStorage.removeItem('zentube_watch_progress');
-        updateCurrentFeedUI();
-      }
-    }
-
+    function toggleDockPlayer() { document.getElementById('player-modal').classList.toggle('docked'); }
     function switchTab(viewId, el) {
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-      
-      const target = document.getElementById(viewId);
-      if (target) target.classList.add('active');
-
-      const navItem = el ? el.closest('.nav-item') : null;
-      if (navItem) {
-        navItem.classList.add('active');
-      }
+      document.getElementById(viewId).classList.add('active');
+      if (el) el.closest('.nav-item').classList.add('active');
+    }
+    function renderFeed(videos, containerId) {
+      const grid = document.getElementById(containerId);
+      if (!grid) return;
+      grid.innerHTML = '';
+      videos.forEach(v => {
+        const card = document.createElement('div');
+        card.className = 'video-card';
+        card.onclick = () => openPlayer(v.id, v.title, v.channel, v.thumbnail);
+        card.innerHTML = `
+          <div class="thumbnail-wrapper"><img class="thumbnail-img" src="${v.thumbnail}" /></div>
+          <div class="video-info"><div class="video-title">${v.title}</div><div class="video-meta">${v.channel}</div></div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+    function saveProxyUrl() {
+      proxyUrl = document.getElementById('proxy-url-input').value.trim().replace(/\/$/, '');
+      localStorage.setItem('zentube_proxy_url', proxyUrl);
+      alert('Proxy Saved!');
+    }
+    function saveClientId() {
+      clientId = document.getElementById('client-id-input').value.trim();
+      localStorage.setItem('zentube_client_id', clientId);
+      alert('Client ID Saved!');
     }
   </script>
 </body>
