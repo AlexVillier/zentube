@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>ZenTube - Adaptive Dual-Stream Architecture</title>
+  <title>ZenTube - Adaptive Dual-Stream with Sync & High Quality</title>
   
   <!-- iOS WebApp Meta Tags for Native Feel -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -646,6 +646,7 @@
     let watchProgress = JSON.parse(localStorage.getItem('zentube_watch_progress') || '{}');
     let currentVideoId = null;
     let progressInterval = null;
+    let syncInterval = null;
     let activeFeedVideos = [];
     let userPaused = false;
     let activeStreamUrl = '';
@@ -690,7 +691,7 @@
     function setupVerboseVideoListeners() {
       const video = document.getElementById('proxy-video-player');
       const bgAudio = document.getElementById('bg-audio-fallback');
-      if (!video) return;
+      if (!video || !bgAudio) return;
 
       const events = [
         'loadstart', 'durationchange', 'loadedmetadata', 'loadeddata', 
@@ -710,22 +711,67 @@
         logVerbose(`VIDEO ERROR DETECTED -> code: ${err ? err.code : 'unknown'}, message: ${err ? err.message : 'none'}`, 'error');
       });
 
-      // Adaptive Dual-Stream Visibility Handoff (Zero Latency)
+      // Linked Play/Pause and Seeking State Synchronization
+      video.onplay = () => {
+        if (!document.hidden && !userPaused && bgAudio.paused) {
+          bgAudio.play().catch(() => {});
+        }
+      };
+
+      video.onpause = () => {
+        if (!document.hidden && userPaused && !bgAudio.paused) {
+          bgAudio.pause();
+        }
+      };
+
+      video.onseeking = () => {
+        if (Math.abs(video.currentTime - bgAudio.currentTime) > 0.3) {
+          bgAudio.currentTime = video.currentTime;
+        }
+      };
+
+      bgAudio.onseeking = () => {
+        if (Math.abs(bgAudio.currentTime - video.currentTime) > 0.3) {
+          video.currentTime = bgAudio.currentTime;
+        }
+      };
+
+      // Visibility Handoff & Sync Loop Control
       document.addEventListener('visibilitychange', () => {
         logVerbose(`Visibility Change -> hidden: ${document.hidden}, userPaused: ${userPaused}, audioPaused: ${bgAudio.paused}`);
 
         if (document.hidden && !userPaused) {
-          logVerbose('App backgrounded. Pausing video element; background audio stream continues uninterrupted.');
+          logVerbose('App backgrounded. Pausing video element; background audio stream continues.');
           video.pause();
-          // bgAudio continues playing seamlessly in background with zero delay!
-        } else if (!document.hidden && !userPaused && bgAudio) {
-          logVerbose('App foregrounded. Syncing video timeline with audio stream...');
+          stopSyncLoop();
+        } else if (!document.hidden && !userPaused) {
+          logVerbose('App foregrounded. Re-syncing video timeline and resuming video...');
           video.currentTime = bgAudio.currentTime;
           video.play().catch(err => {
             logVerbose(`Video resume error: ${err.message}`, 'warn');
           });
+          startSyncLoop(video, bgAudio);
         }
       });
+    }
+
+    function startSyncLoop(videoEl, audioEl) {
+      stopSyncLoop();
+      syncInterval = setInterval(() => {
+        if (!videoEl || !audioEl || videoEl.paused || audioEl.paused || document.hidden) return;
+        const drift = Math.abs(videoEl.currentTime - audioEl.currentTime);
+        if (drift > 0.15) {
+          logVerbose(`Sync drift detected: ${drift.toFixed(3)}s. Realigning audio to video.`);
+          audioEl.currentTime = videoEl.currentTime;
+        }
+      }, 1000);
+    }
+
+    function stopSyncLoop() {
+      if (syncInterval) {
+        clearInterval(syncInterval);
+        syncInterval = null;
+      }
     }
 
     /* Native iOS Audio Session & MediaSession Handlers with Adaptive Routing */
@@ -1118,10 +1164,16 @@
           let audioStreamUrl = '';
           let videoStreamUrl = '';
 
-          // Filter adaptiveFormats for separate audio-only and video-only streams
           if (data.adaptiveFormats && data.adaptiveFormats.length > 0) {
-            const audioFormat = data.adaptiveFormats.find(f => f.type && f.type.startsWith('audio/'));
-            const videoFormat = data.adaptiveFormats.find(f => f.type && f.type.startsWith('video/') && f.resolution);
+            // Select highest quality audio format available
+            const audioFormats = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('audio/'));
+            audioFormats.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+            const audioFormat = audioFormats[0];
+
+            // Select highest resolution video format available (e.g. 1080p / 720p over low quality)
+            const videoFormats = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('video/') && f.resolution);
+            videoFormats.sort((a, b) => (b.height || 0) - (a.height || 0));
+            const videoFormat = videoFormats[0] || data.adaptiveFormats.find(f => f.type && f.type.startsWith('video/'));
 
             if (audioFormat && audioFormat.url) {
               const u = new URL(audioFormat.url.startsWith('http') ? audioFormat.url : `${proxyUrl}${audioFormat.url}`);
@@ -1133,12 +1185,13 @@
               const u = new URL(videoFormat.url.startsWith('http') ? videoFormat.url : `${proxyUrl}${videoFormat.url}`);
               videoStreamUrl = u.hostname.includes('googlevideo.com') ? `${proxyUrl}${u.pathname}${u.search}` : u.toString();
               videoStreamUrl = videoStreamUrl.includes('?') ? `${videoStreamUrl}&local=true` : `${videoStreamUrl}?local=true`;
+              logVerbose(`Selected High-Quality Video Resolution: ${videoFormat.resolution || videoFormat.height + 'p'}`);
             }
           }
 
           if (audioStreamUrl && videoStreamUrl) {
             activeStreamUrl = audioStreamUrl;
-            logVerbose('Successfully extracted separate audio-only and video-only adaptive streams.');
+            logVerbose('Successfully extracted high-definition video and audio adaptive streams.');
 
             proxyVideo.src = videoStreamUrl;
             proxyVideo.currentTime = savedTime;
@@ -1146,19 +1199,20 @@
             bgAudio.src = audioStreamUrl;
             bgAudio.currentTime = savedTime;
 
-            // Play both concurrently (video-only is silent; audio-only provides sound)
             Promise.all([proxyVideo.play(), bgAudio.play()]).then(() => {
-              logVerbose('Concurrent adaptive streams playing successfully.');
+              logVerbose('High-quality concurrent adaptive streams playing successfully.');
+              startSyncLoop(proxyVideo, bgAudio);
             }).catch(e => {
               logVerbose(`Autoplay restriction: ${e.message}. Forcing muted fallback.`, 'warn');
               proxyVideo.muted = true;
               proxyVideo.play();
               bgAudio.play().catch(() => {});
+              startSyncLoop(proxyVideo, bgAudio);
             });
 
             startProxyProgressTracking(proxyVideo);
           } else {
-            throw new Error('Could not extract separate adaptive audio/video formats');
+            throw new Error('Could not extract separate adaptive high-quality formats');
           }
         } catch (err) {
           logVerbose(`Adaptive extraction error: ${err.message}. Falling back to iframe.`, 'error');
@@ -1247,6 +1301,7 @@
         startIframeProgressTracking();
       } else if (typeof YT !== 'undefined' && event.data === YT.PlayerState.ENDED) {
         stopProgressTracking();
+        stopSyncLoop();
         if (currentVideoId && ytPlayer && ytPlayer.getDuration) {
           const duration = ytPlayer.getDuration();
           watchProgress[currentVideoId] = { currentTime: duration, duration: duration, updatedAt: Date.now() };
@@ -1305,6 +1360,7 @@
     function closePlayer() {
       logVerbose('Closing player modal and stopping playback');
       stopProgressTracking();
+      stopSyncLoop();
       userPaused = true;
       activeStreamUrl = '';
       if (ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
