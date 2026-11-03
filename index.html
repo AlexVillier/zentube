@@ -616,6 +616,7 @@
     let currentVideoId = null;
     let progressInterval = null;
     let activeFeedVideos = [];
+    let userPaused = false; // Tracks if pause was intentional by the user
 
     const demoVideos = [
       { id: 'dQw4w9WgXcQ', title: 'Rick Astley - Never Gonna Give You Up', channel: 'Rick Astley', duration: 213, thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg' },
@@ -666,6 +667,24 @@
         logPipDebug('Event: leavepictureinpicture');
       });
 
+      video.addEventListener('play', () => {
+        userPaused = false;
+        if ('mediaSession' in navigator) {
+          navigator.mediaSession.playbackState = "playing";
+        }
+      });
+
+      video.addEventListener('pause', () => {
+        if ('mediaSession' in navigator) {
+          navigator.mediaSession.playbackState = "paused";
+        }
+        // If iOS WebKit pauses the video automatically while the app is backgrounded, force it back to playing
+        if (document.hidden && !userPaused) {
+          logPipDebug('Intercepted background pause — resuming playback');
+          video.play().catch(e => console.warn('Background resume blocked:', e));
+        }
+      });
+
       video.addEventListener('error', () => {
         logPipDebug(`Video Error code: ${video.error ? video.error.code : 'unknown'}`);
       });
@@ -675,7 +694,6 @@
     function setupBackgroundAudioHandlers() {
       const proxyVideo = document.getElementById('proxy-video-player');
 
-      // Crucial for iOS PWA background audio persistence
       try {
         if (navigator.audioSession) {
           navigator.audioSession.type = 'playback';
@@ -687,27 +705,17 @@
       try {
         if ('mediaSession' in navigator) {
           navigator.mediaSession.setActionHandler('play', () => {
+            userPaused = false;
             if (proxyVideo && proxyVideo.paused) proxyVideo.play();
           });
           navigator.mediaSession.setActionHandler('pause', () => {
+            userPaused = true;
             if (proxyVideo && !proxyVideo.paused) proxyVideo.pause();
           });
         }
       } catch (err) {
         console.warn('MediaSession action handlers not supported:', err);
       }
-
-      // Re-assert playback immediately if app loses visibility or locks screen
-      document.addEventListener('visibilitychange', () => {
-        if (document.hidden && proxyVideo && !proxyVideo.paused) {
-          logPipDebug('App backgrounded — maintaining audio stream playback');
-          setTimeout(() => {
-            if (proxyVideo.paused && currentVideoId) {
-              proxyVideo.play().catch(e => console.warn('Background resume:', e));
-            }
-          }, 100);
-        }
-      });
     }
 
     function updateMediaSessionMetadata(title, channel, thumbnail) {
@@ -1023,6 +1031,7 @@
 
     async function openPlayer(videoId, title, channel, thumbnail = '') {
       currentVideoId = videoId;
+      userPaused = false;
       const modal = document.getElementById('player-modal');
       const pipBtn = document.getElementById('pip-btn');
       
@@ -1130,6 +1139,7 @@
         proxyVideo.style.display = 'block';
 
         if (proxyVideo.paused) {
+          userPaused = false;
           proxyVideo.play();
         }
 
@@ -1220,6 +1230,7 @@
 
     function closePlayer() {
       stopProgressTracking();
+      userPaused = true;
       if (ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
       const proxyVideo = document.getElementById('proxy-video-player');
       if (proxyVideo) {
