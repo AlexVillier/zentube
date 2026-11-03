@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>ZenTube - Minimalist YouTube with Background Audio Activation</title>
+  <title>ZenTube - Minimalist YouTube with Automatic Background Audio</title>
   
   <!-- iOS WebApp Meta Tags for Native Feel -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -709,13 +709,13 @@
         logVerbose(`VIDEO ERROR DETECTED -> code: ${err ? err.code : 'unknown'}, message: ${err ? err.message : 'none'}`, 'error');
       });
 
-      // Explicit Background Audio Activation & Handoff on Visibility Change
+      // Reliable Background Audio Activation using !userPaused tracking
       document.addEventListener('visibilitychange', () => {
         const bgAudio = document.getElementById('bg-audio-fallback');
-        logVerbose(`Visibility Change -> hidden: ${document.hidden}, videoPaused: ${video.paused}, audioPaused: ${bgAudio.paused}`);
+        logVerbose(`Visibility Change -> hidden: ${document.hidden}, userPaused: ${userPaused}, audioPaused: ${bgAudio.paused}`);
 
-        if (document.hidden && video && !video.paused && activeStreamUrl) {
-          logVerbose('App backgrounded. Activating background audio element...');
+        if (document.hidden && !userPaused && activeStreamUrl) {
+          logVerbose('App backgrounded. Activating background audio fallback...');
           const currentTime = video.currentTime;
           
           video.pause();
@@ -723,9 +723,9 @@
           bgAudio.src = activeStreamUrl;
           bgAudio.currentTime = currentTime;
           bgAudio.play().then(() => {
-            logVerbose('Background audio fallback successfully playing in background.');
+            logVerbose('Background audio activated successfully.');
           }).catch(err => {
-            logVerbose(`Background audio play error: ${err.message}`, 'error');
+            logVerbose(`Background audio error: ${err.message}`, 'error');
           });
         } else if (!document.hidden && bgAudio && !bgAudio.paused) {
           logVerbose('App foregrounded. Restoring video player...');
