@@ -364,13 +364,15 @@
                 playlistData.items.forEach(item => {
                   const thumbnails = item.snippet.thumbnails;
                   const thumbUrl = thumbnails.medium ? thumbnails.medium.url : (thumbnails.default ? thumbnails.default.url : '');
-                  allVideos.push({
-                    id: item.snippet.resourceId.videoId,
-                    title: item.snippet.title,
-                    channel: item.snippet.channelTitle,
-                    thumbnail: thumbUrl,
-                    publishedAt: new Date(item.snippet.publishedAt)
-                  });
+                  if (item.snippet && item.snippet.resourceId && item.snippet.resourceId.videoId) {
+                    allVideos.push({
+                      id: item.snippet.resourceId.videoId,
+                      title: item.snippet.title,
+                      channel: item.snippet.channelTitle,
+                      thumbnail: thumbUrl,
+                      publishedAt: new Date(item.snippet.publishedAt)
+                    });
+                  }
                 });
               }
             }
@@ -380,12 +382,17 @@
         if (allVideos.length > 0) {
           activeFeedVideos = allVideos;
           renderFeed(activeFeedVideos, 'video-grid');
-        } else { renderFeed(demoVideos, 'video-grid'); }
+        } else {
+          renderFeed(demoVideos, 'video-grid');
+        }
         if (syncStatus) {
           syncStatus.textContent = 'Live Feed';
           syncStatus.style.color = 'var(--success-color)';
         }
-      } catch (err) { renderFeed(demoVideos, 'video-grid'); }
+      } catch (err) {
+        console.error('Feed error:', err);
+        renderFeed(demoVideos, 'video-grid');
+      }
     }
 
     function renderChannelsList(channels) {
@@ -479,7 +486,6 @@
       };
 
       video.onpause = () => {
-        // Strict Isolation: Ignore browser-level system pause events when app is backgrounded
         if (isExplicitUserPause && !isAppBackgrounded) {
           logVerbose('User-prompted explicit pause detected.');
           if (!bgAudio.paused) bgAudio.pause();
@@ -505,20 +511,17 @@
         if (!video.paused && !isExplicitUserPause && bgAudio.paused && !isAppBackgrounded) bgAudio.play().catch(() => {});
       };
 
-      // Robust App Background / Foreground State Differentiator
       document.addEventListener('visibilitychange', () => {
         isAppBackgrounded = document.hidden;
         logVerbose(`Visibility Change -> hidden: ${document.hidden}, isExplicitUserPause: ${isExplicitUserPause}`);
 
         if (document.hidden) {
-          // App minimized: pause video renderer but ensure audio element continues playing independently
           video.pause();
           stopSyncLoop();
           if (audioInitialized && !isExplicitUserPause) {
             bgAudio.play().catch(e => logVerbose(`Background play resume error: ${e.message}`, 'warn'));
           }
         } else {
-          // App restored: re-sync video timeline with background audio stream
           if (!isExplicitUserPause) {
             video.currentTime = bgAudio.currentTime;
             video.play().catch(() => {});
@@ -635,7 +638,6 @@
 
             availableAudioFormats = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('audio/'));
             
-            // Hard Linguistic Filter: If target is English, completely discard non-English/dub tracks
             if (defaultLang.includes('en')) {
               const strictEnglish = availableAudioFormats.filter(f => {
                 const lc = (f.languageCode || '').toLowerCase();
@@ -669,7 +671,6 @@
 
             const audioFormat = availableAudioFormats[0];
 
-            // Immediate lightning-fast startup format selection (targets smallest valid adaptive video stream)
             availableVideoFormats = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('video/') && f.url);
             availableVideoFormats.sort((a, b) => (a.height || 480) - (b.height || 480));
             const videoFormat = availableVideoFormats[0] || data.adaptiveFormats.find(f => f.type && f.type.startsWith('video/'));
@@ -772,6 +773,9 @@
       const grid = document.getElementById(containerId);
       if (!grid) return;
       grid.innerHTML = '';
+      if (!videos || videos.length === 0) {
+        videos = demoVideos;
+      }
       videos.forEach(v => {
         const card = document.createElement('div');
         card.className = 'video-card';
@@ -785,7 +789,7 @@
     }
 
     function saveProxyUrl() {
-      proxyUrl = document.getElementById('proxy-url-input'].value.trim().replace(/\/$/, '');
+      proxyUrl = document.getElementById('proxy-url-input').value.trim().replace(/\/$/, '');
       localStorage.setItem('zentube_proxy_url', proxyUrl);
       alert('Proxy Saved!');
     }
