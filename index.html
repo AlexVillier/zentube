@@ -92,7 +92,7 @@
     #youtube-player, #proxy-video-player { width: 100%; height: 100%; object-fit: contain; background: #000; display: none; }
 
     .player-details { padding: 16px; flex: 1; display: flex; flex-direction: column; gap: 12px; }
-    .debug-terminal { background: #000; border: 1px solid var(--border-color); border-radius: 10px; padding: 10px; font-family: monospace; font-size: 11px; color: var(--success-color); height: 160px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; white-space: pre-wrap; word-break: break-all; }
+    .debug-terminal { background: #000; border: 1px solid var(--border-color); border-radius: 10px; padding: 10px; font-family: monospace; font-size: 11px; color: var(--success-color); height: 140px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; white-space: pre-wrap; word-break: break-all; }
     .log-entry.error { color: #ff453a; }
     .log-entry.warn { color: #ffd60a; }
 
@@ -211,7 +211,7 @@
       <h2 id="modal-video-title" style="font-size: 18px; margin-bottom: 4px;"></h2>
       <p id="modal-channel-title" style="color: var(--text-secondary); font-size: 13px; margin-bottom: 8px;"></p>
       <div style="display: flex; gap: 8px; margin-bottom: 10px;">
-        <button class="save-btn" style="flex: 1; padding: 8px;" onclick="forcePlayAudioStream()">🔊 Tap to Enable Audio</button>
+        <button class="save-btn" style="flex: 1; padding: 10px; font-size: 14px; background: var(--success-color); color: #000;" onclick="forceUnlockWebAudio()">▶ Tap to Start Audio & Video</button>
       </div>
       <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Live Verbose Debug Terminal</div>
       <div class="debug-terminal" id="debug-terminal">
@@ -237,7 +237,6 @@
     let proxyUrl = localStorage.getItem('zentube_proxy_url') || '';
     let watchProgress = JSON.parse(localStorage.getItem('zentube_watch_progress') || '{}');
     let currentVideoId = null;
-    let progressInterval = null;
     let syncInterval = null;
     let stallTimeout = null;
     let activeFeedVideos = [];
@@ -246,7 +245,8 @@
     let availableVideoFormats = [];
     let availableAudioFormats = [];
     let currentQualityIndex = 0;
-    let audioInitialized = false;
+    let audioContext = null;
+    let audioNodeSource = null;
 
     const demoVideos = [
       { id: 'dQw4w9WgXcQ', title: 'Rick Astley - Never Gonna Give You Up', channel: 'Rick Astley', duration: 213, thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg' }
@@ -480,10 +480,8 @@
       if (!video || !bgAudio) return;
 
       video.onplay = () => {
-        if (!isAppBackgrounded) {
-          isExplicitUserPause = false;
-        }
-        if (audioInitialized && bgAudio.paused && !isAppBackgrounded) {
+        if (!isAppBackgrounded) isExplicitUserPause = false;
+        if (bgAudio.paused && !isAppBackgrounded) {
           bgAudio.play().catch(e => logVerbose(`bgAudio play warning: ${e.message}`, 'warn'));
         }
       };
@@ -494,21 +492,6 @@
           if (!bgAudio.paused) bgAudio.pause();
         } else {
           logVerbose('Browser/Background system pause event safely ignored; audio stream remains active.');
-        }
-      };
-
-      video.oncanplay = () => {
-        clearStallMonitor();
-        if (!audioInitialized && !isExplicitUserPause) {
-          audioInitialized = true;
-          bgAudio.muted = false;
-          bgAudio.currentTime = video.currentTime;
-          bgAudio.play().then(() => {
-            logVerbose('Gated audio stream successfully synchronized & started with video.');
-            startSyncLoop(video, bgAudio);
-          }).catch(e => {
-            logVerbose(`Audio gated start restriction: ${e.message}`, 'warn');
-          });
         }
       };
 
@@ -524,7 +507,7 @@
         if (document.hidden) {
           video.pause();
           stopSyncLoop();
-          if (audioInitialized && !isExplicitUserPause) {
+          if (!isExplicitUserPause) {
             bgAudio.play().catch(e => logVerbose(`Background play resume error: ${e.message}`, 'warn'));
           }
         } else {
@@ -537,21 +520,34 @@
       });
     }
 
-    function forcePlayAudioStream() {
+    function forceUnlockWebAudio() {
       const bgAudio = document.getElementById('bg-audio-fallback');
       const proxyVideo = document.getElementById('proxy-video-player');
-      if (bgAudio) {
-        bgAudio.muted = false;
-        bgAudio.currentTime = proxyVideo.currentTime;
-        bgAudio.play().then(() => {
-          logVerbose('Manual user gesture successfully unlocked audio stream.');
-          audioInitialized = true;
-          if (proxyVideo.paused && !isExplicitUserPause) proxyVideo.play();
-          startSyncLoop(proxyVideo, bgAudio);
-        }).catch(err => {
-          logVerbose(`Manual audio unlock failed: ${err.message}`, 'error');
-        });
+
+      try {
+        if (!audioContext) {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioContext.state === 'suspended') {
+          audioContext.resume();
+        }
+        if (!audioNodeSource && bgAudio.src) {
+          audioNodeSource = audioContext.createMediaElementSource(bgAudio);
+          audioNodeSource.connect(audioContext.destination);
+        }
+      } catch (err) {
+        logVerbose(`WebAudio routing notice: ${err.message}`, 'warn');
       }
+
+      bgAudio.muted = false;
+      bgAudio.currentTime = proxyVideo.currentTime;
+      bgAudio.play().then(() => {
+        logVerbose('Web Audio Context & Media Element successfully unlocked.');
+        if (proxyVideo.paused && !isExplicitUserPause) proxyVideo.play();
+        startSyncLoop(proxyVideo, bgAudio);
+      }).catch(err => {
+        logVerbose(`Audio unlock failed: ${err.message}`, 'error');
+      });
     }
 
     function startStallMonitor() {
@@ -630,7 +626,6 @@
       currentVideoId = videoId;
       isExplicitUserPause = false;
       isAppBackgrounded = false;
-      audioInitialized = false;
       currentQualityIndex = 0;
       clearStallMonitor();
 
@@ -667,9 +662,7 @@
                 if (lc && !lc.includes('en') && !lc.includes('default') && !lc.includes('orig')) return false;
                 return true;
               });
-              if (strictEnglish.length > 0) {
-                availableAudioFormats = strictEnglish;
-              }
+              if (strictEnglish.length > 0) availableAudioFormats = strictEnglish;
             }
 
             availableAudioFormats.sort((a, b) => {
@@ -770,7 +763,7 @@
       clearStallMonitor();
       isExplicitUserPause = true;
       isAppBackgrounded = false;
-      audioInitialized = false;
+      audioNodeSource = null;
       const proxyVideo = document.getElementById('proxy-video-player');
       const bgAudio = document.getElementById('bg-audio-fallback');
       if (proxyVideo) { proxyVideo.pause(); proxyVideo.src = ''; proxyVideo.style.display = 'none'; }
@@ -796,9 +789,7 @@
       const grid = document.getElementById(containerId);
       if (!grid) return;
       grid.innerHTML = '';
-      if (!videos || videos.length === 0) {
-        videos = demoVideos;
-      }
+      if (!videos || videos.length === 0) videos = demoVideos;
       videos.forEach(v => {
         const card = document.createElement('div');
         card.className = 'video-card';
