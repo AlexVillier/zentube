@@ -475,6 +475,7 @@
         }
         if (audioInitialized && bgAudio.paused && video.readyState >= 3 && !isAppBackgrounded) {
           bgAudio.play().catch(e => logVerbose(`bgAudio play warning: ${e.message}`, 'warn'));
+          startSyncLoop(video, bgAudio);
         }
       };
 
@@ -482,6 +483,7 @@
         if (!isAppBackgrounded) {
           userPaused = true;
           logVerbose('User-prompted pause detected.');
+          stopSyncLoop();
           if (!bgAudio.paused) bgAudio.pause();
         } else {
           logVerbose('App backgrounded pause event isolated; background audio remains active.');
@@ -513,7 +515,7 @@
           video.pause();
           stopSyncLoop();
           if (audioInitialized && !userPaused) {
-            bgAudio.play().catch(e => logVerbose(`Background play resume error: ${e.message}`, 'warn'));
+            bgAudio.play().catch(e => logVerbose(`Background play resume error: ${e.message}`, 'warn');
           }
         } else {
           if (!userPaused) {
@@ -554,16 +556,22 @@
     function startSyncLoop(videoEl, audioEl) {
       stopSyncLoop();
       syncInterval = setInterval(() => {
-        if (!videoEl || !audioEl || videoEl.paused || audioEl.paused || document.hidden) return;
-        const drift = Math.abs(videoEl.currentTime - audioEl.currentTime);
-        if (drift > 0.8) {
-          logVerbose(`Sync drift detected: ${drift.toFixed(3)}s. Realigning audio.`);
+        if (!videoEl || !audioEl || videoEl.paused || audioEl.paused || document.hidden || userPaused) return;
+        const drift = videoEl.currentTime - audioEl.currentTime;
+        const absDrift = Math.abs(drift);
+
+        // Aggressive micro-correction before drift builds up
+        if (absDrift > 0.4) {
+          logVerbose(`Sync drift corrected (${drift.toFixed(3)}s). Realigning clocks.`);
           audioEl.currentTime = videoEl.currentTime;
           audioEl.playbackRate = 1.0;
-        } else if (drift > 0.2) {
-          audioEl.playbackRate = (videoEl.currentTime > audioEl.currentTime) ? 1.05 : 0.95;
-        } else { audioEl.playbackRate = 1.0; }
-      }, 1500);
+        } else if (absDrift > 0.08) {
+          // Smooth pitch-preserving micro-speed adjustment to eliminate drift
+          audioEl.playbackRate = drift > 0 ? 1.02 : 0.98;
+        } else {
+          audioEl.playbackRate = 1.0;
+        }
+      }, 500);
     }
 
     function stopSyncLoop() {
@@ -632,35 +640,26 @@
 
             availableAudioFormats = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('audio/'));
             
-            logVerbose(`--- RAW AUDIO FORMATS (${availableAudioFormats.length}) ---`);
-            availableAudioFormats.forEach((f, idx) => {
-              logVerbose(`[Raw ${idx}] lang: "${f.languageCode || 'EMPTY'}", bitrate: ${f.bitrate || 0}, type: "${f.type}"`);
-            });
-
-            // Deterministic Stereo Bitrate & Profile Scoring Function
+            // Deterministic Audio Scoring Function prioritizing AAC (audio/mp4) to prevent cross-codec drift
             const evaluateStreamScore = (fmt) => {
               let score = 0;
               const lang = (fmt.languageCode || '').toLowerCase();
               const bitrate = fmt.bitrate || 0;
               const type = fmt.type || '';
 
-              // 1. Language Filtering: Reject dubs/commentary
               const dubKeywords = ['dub', 'desc', 'commentary', 'es', 'fr', 'de', 'ja', 'hi', 'ru', 'pt', 'it', 'ko', 'zh'];
               const isDub = dubKeywords.some(kw => lang.includes(kw));
               if (isDub) score -= 1000;
 
-              // 2. Primary / Original Language bonus
               if (lang === '' || lang === defaultLang || lang.startsWith(defaultLang)) {
                 score += 500;
               }
 
-              // 3. Container Preference: AAC (audio/mp4) standard stereo
+              // Heavy bonus for AAC / MP4 audio containers to match standard hardware video clocks
               if (type.includes('mp4') || type.includes('m4a')) {
-                score += 100;
+                score += 400;
               }
 
-              // 4. Target Bitrate Alignment: Standard Stereo (~120kbps - ~160kbps)
-              // Penalty for sub-100kbps (preview) or 160kbps+ (multi-channel / dubbed spatial audio)
               if (bitrate >= 120000 && bitrate <= 160000) {
                 score += 300;
               } else if (bitrate > 160000) {
@@ -672,12 +671,11 @@
               return score;
             };
 
-            // Sort formats deterministically by score
             availableAudioFormats.sort((a, b) => evaluateStreamScore(b) - evaluateStreamScore(a));
 
             logVerbose(`--- DETERMINISTICALLY SORTED AUDIO FORMATS ---`);
             availableAudioFormats.forEach((f, idx) => {
-              logVerbose(`[Sorted ${idx}] Score: ${evaluateStreamScore(f)}, lang: "${f.languageCode || 'EMPTY'}", bitrate: ${f.bitrate || 0}`);
+              logVerbose(`[Sorted ${idx}] Score: ${evaluateStreamScore(f)}, lang: "${f.languageCode || 'EMPTY'}", bitrate: ${f.bitrate || 0}, type: "${f.type}"`);
             });
 
             const selectEl = document.getElementById('audio-lang-select');
