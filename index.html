@@ -473,7 +473,8 @@
         if (!isAppBackgrounded) {
           userPaused = false;
         }
-        if (audioInitialized && bgAudio.paused && video.readyState >= 3 && !isAppBackgrounded) {
+        if (audioInitialized && !isAppBackgrounded) {
+          bgAudio.currentTime = video.currentTime; // Explicitly snap audio clock before play
           bgAudio.play().catch(e => logVerbose(`bgAudio play warning: ${e.message}`, 'warn'));
           startSyncLoop(video, bgAudio);
         }
@@ -504,7 +505,10 @@
 
       video.onseeking = () => { bgAudio.currentTime = video.currentTime; };
       video.onseeked = () => {
-        if (!video.paused && !userPaused && bgAudio.paused && !isAppBackgrounded) bgAudio.play().catch(() => {});
+        if (!video.paused && !userPaused && bgAudio.paused && !isAppBackgrounded) {
+          bgAudio.currentTime = video.currentTime;
+          bgAudio.play().catch(() => {});
+        }
       };
 
       document.addEventListener('visibilitychange', () => {
@@ -560,13 +564,11 @@
         const drift = videoEl.currentTime - audioEl.currentTime;
         const absDrift = Math.abs(drift);
 
-        // Increased threshold to 1.2s to prevent constant network re-buffering loops
         if (absDrift > 1.2) {
           logVerbose(`Hard sync correction (${drift.toFixed(3)}s). Realigning clocks.`);
           audioEl.currentTime = videoEl.currentTime;
           audioEl.playbackRate = 1.0;
         } else if (absDrift > 0.15) {
-          // Smooth progressive playback rate adjustment
           audioEl.playbackRate = drift > 0 ? 1.05 : 0.95;
         } else {
           audioEl.playbackRate = 1.0;
@@ -587,8 +589,11 @@
           navigator.mediaSession.setActionHandler('play', () => {
             userPaused = false;
             isAppBackgrounded = false;
-            document.getElementById('bg-audio-fallback').play();
-            if (!document.hidden) document.getElementById('proxy-video-player').play();
+            const bgAudio = document.getElementById('bg-audio-fallback');
+            const video = document.getElementById('proxy-video-player');
+            bgAudio.currentTime = video.currentTime;
+            bgAudio.play();
+            if (!document.hidden) video.play();
           });
           navigator.mediaSession.setActionHandler('pause', () => {
             userPaused = true;
@@ -726,11 +731,11 @@
       proxyVideo.src = videoUrl;
       bgAudio.src = audioUrl;
 
-      // Robust initial alignment once both streams have data ready
+      // Unconditional initial alignment once both streams have data ready
       let readyCount = 0;
       const tryInitTime = () => {
         readyCount++;
-        if (readyCount >= 2 && targetTime > 0) {
+        if (readyCount >= 2) {
           proxyVideo.currentTime = targetTime;
           bgAudio.currentTime = targetTime;
         }
