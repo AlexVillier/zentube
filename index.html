@@ -632,28 +632,37 @@
 
             availableAudioFormats = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('audio/'));
             
-            // Fixed & Strict Original Audio Track Sorting Algorithm
+            // --- DEBUG LOGGING: Inspect raw audio streams before sorting ---
+            logVerbose(`--- RAW AUDIO FORMATS (${availableAudioFormats.length}) ---`);
+            availableAudioFormats.forEach((f, idx) => {
+              logVerbose(`[Raw ${idx}] lang: "${f.languageCode || 'EMPTY'}", bitrate: ${f.bitrate || 0}, isOriginal: ${f.isOriginal}`);
+            });
+
+            // Robust Original Audio Track Sorting Algorithm with Debug Logging
             availableAudioFormats.sort((a, b) => {
               const langA = (a.languageCode || '').toLowerCase();
               const langB = (b.languageCode || '').toLowerCase();
               
-              const isDefaultLangA = langA === defaultLang || langA.startsWith(defaultLang);
-              const isDefaultLangB = langB === defaultLang || langB.startsWith(defaultLang);
+              const dubKeywords = ['dub', 'desc', 'commentary', 'es', 'fr', 'de', 'ja', 'hi', 'ru', 'pt', 'it', 'ko', 'zh'];
+              const isDubA = dubKeywords.some(kw => langA.includes(kw));
+              const isDubB = dubKeywords.some(kw => langB.includes(kw));
 
-              const foreignPrefixes = ['es', 'fr', 'de', 'ja', 'hi', 'ru', 'pt', 'it', 'ko', 'zh', 'dub', 'commentary', 'descriptive'];
-              const isWrongLangA = defaultLang.startsWith('en') && foreignPrefixes.some(p => langA.startsWith(p) || langA === p);
-              const isWrongLangB = defaultLang.startsWith('en') && foreignPrefixes.some(p => langB.startsWith(p) || langB === p);
+              if (isDubA && !isDubB) return 1;
+              if (isDubB && !isDubA) return -1;
 
-              if (isWrongLangA && !isWrongLangB) return 1;
-              if (isWrongLangB && !isWrongLangA) return -1;
+              const isPrimaryA = langA === '' || langA === defaultLang || langA.startsWith(defaultLang);
+              const isPrimaryB = langB === '' || langB === defaultLang || langB.startsWith(defaultLang);
 
-              if (isDefaultLangA && !isDefaultLangB) return -1;
-              if (isDefaultLangB && !isDefaultLangA) return 1;
+              if (isPrimaryA && !isPrimaryB) return -1;
+              if (isPrimaryB && !isPrimaryA) return 1;
 
-              if (a.isOriginal === true && b.isOriginal !== true) return -1;
-              if (b.isOriginal === true && a.isOriginal !== true) return 1;
+              return 0;
+            });
 
-              return (b.bitrate || 0) - (a.bitrate || 0);
+            // --- DEBUG LOGGING: Inspect sorted audio streams after sorting ---
+            logVerbose(`--- SORTED AUDIO FORMATS ---`);
+            availableAudioFormats.forEach((f, idx) => {
+              logVerbose(`[Sorted ${idx}] lang: "${f.languageCode || 'EMPTY'}", bitrate: ${f.bitrate || 0}`);
             });
 
             const selectEl = document.getElementById('audio-lang-select');
