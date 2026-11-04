@@ -487,15 +487,19 @@
       };
 
       video.onpause = () => {
-        if (!isAppBackgrounded) {
-          userPaused = true;
-          logVerbose('User-prompted pause detected.');
-          stopSyncLoop();
-          if (!bgAudio.paused) bgAudio.pause();
-          if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
-        } else {
-          logVerbose('App backgrounded pause event isolated; background audio remains active.');
+        // Prevent background blur/lock pause events from triggering userPaused state
+        if (document.hidden || isAppBackgrounded) {
+          logVerbose('Background pause event isolated; keeping audio session active.');
+          if (bgAudio.paused && !userPaused) {
+            bgAudio.play().catch(() => {});
+          }
+          return;
         }
+        userPaused = true;
+        logVerbose('User-prompted pause detected.');
+        stopSyncLoop();
+        if (!bgAudio.paused) bgAudio.pause();
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
       };
 
       video.oncanplay = () => {
@@ -526,7 +530,6 @@
         logVerbose(`Visibility Change -> hidden: ${document.hidden}, userPaused: ${userPaused}`);
 
         if (document.hidden) {
-          video.pause();
           stopSyncLoop();
           if (audioInitialized && !userPaused) {
             bgAudio.play().then(() => {
@@ -573,18 +576,19 @@
     function startSyncLoop(videoEl, audioEl) {
       stopSyncLoop();
       syncInterval = setInterval(() => {
-        if (!videoEl || !audioEl || videoEl.paused || audioEl.paused || document.hidden || userPaused) return;
-        const drift = videoEl.currentTime - audioEl.currentTime;
-        const absDrift = Math.abs(drift);
-
-        if (absDrift > 1.2) {
-          logVerbose(`Hard sync correction (${drift.toFixed(3)}s). Realigning clocks.`);
-          audioEl.currentTime = videoEl.currentTime;
-          audioEl.playbackRate = 1.0;
-        } else if (absDrift > 0.15) {
-          audioEl.playbackRate = drift > 0 ? 1.05 : 0.95;
-        } else {
-          audioEl.playbackRate = 1.0;
+        if (!audioEl || audioEl.paused || document.hidden || userPaused) return;
+        if (videoEl && !videoEl.paused) {
+          const drift = videoEl.currentTime - audioEl.currentTime;
+          const absDrift = Math.abs(drift);
+          if (absDrift > 1.2) {
+            logVerbose(`Hard sync correction (${drift.toFixed(3)}s). Realigning clocks.`);
+            audioEl.currentTime = videoEl.currentTime;
+            audioEl.playbackRate = 1.0;
+          } else if (absDrift > 0.15) {
+            audioEl.playbackRate = drift > 0 ? 1.05 : 0.95;
+          } else {
+            audioEl.playbackRate = 1.0;
+          }
         }
       }, 500);
     }
@@ -693,10 +697,9 @@
 
             availableAudioFormats.sort((a, b) => evaluateStreamScore(b) - evaluateStreamScore(a));
 
-            logVerbose(`--- DETERMINISTICALLY SORTED AUDIO FORMATS ---`);
-            availableAudioFormats.forEach((f, idx) => {
-              logVerbose(`[Sorted ${idx}] Score: ${evaluateStreamScore(f)}, lang: "${f.languageCode || 'EMPTY'}", bitrate: ${f.bitrate || 0}, type: "${f.type}"`);
-            });
+            // Concise log showing top selected stream instead of full raw dump
+            const topFmt = availableAudioFormats[0];
+            logVerbose(`Selected Audio: [${topFmt.languageCode || 'Master'}] ${Math.round((topFmt.bitrate || 0) / 1000)}kbps (${topFmt.type})`);
 
             const selectEl = document.getElementById('audio-lang-select');
             selectEl.innerHTML = '';
