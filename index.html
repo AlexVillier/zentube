@@ -224,6 +224,10 @@
     <div class="nav-item" onclick="switchTab('settings-view', this)"><div class="nav-icon">⚙️</div><span>Settings</span></div>
   </nav>
 
+<Carousel>
+  <Video source="youtube" query="lofi hip hop radio beats to study relax to" count="3"/>
+</Carousel>
+
   <script src="https://accounts.google.com/gsi/client" async defer onload="initGoogleAuth()"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
 
@@ -474,8 +478,10 @@
           userPaused = false;
         }
         if (audioInitialized && !isAppBackgrounded) {
-          bgAudio.currentTime = video.currentTime; // Explicitly snap audio clock before play
-          bgAudio.play().catch(e => logVerbose(`bgAudio play warning: ${e.message}`, 'warn'));
+          bgAudio.currentTime = video.currentTime;
+          bgAudio.play().then(() => {
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+          }).catch(e => logVerbose(`bgAudio play warning: ${e.message}`, 'warn'));
           startSyncLoop(video, bgAudio);
         }
       };
@@ -486,6 +492,7 @@
           logVerbose('User-prompted pause detected.');
           stopSyncLoop();
           if (!bgAudio.paused) bgAudio.pause();
+          if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
         } else {
           logVerbose('App backgrounded pause event isolated; background audio remains active.');
         }
@@ -498,6 +505,7 @@
           bgAudio.currentTime = video.currentTime;
           bgAudio.play().then(() => {
             logVerbose('Gated audio stream successfully synchronized & started with video.');
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
             startSyncLoop(video, bgAudio);
           }).catch(e => { logVerbose(`Audio gated start restriction: ${e.message}`, 'warn'); });
         }
@@ -507,7 +515,9 @@
       video.onseeked = () => {
         if (!video.paused && !userPaused && bgAudio.paused && !isAppBackgrounded) {
           bgAudio.currentTime = video.currentTime;
-          bgAudio.play().catch(() => {});
+          bgAudio.play().then(() => {
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+          }).catch(() => {});
         }
       };
 
@@ -519,12 +529,15 @@
           video.pause();
           stopSyncLoop();
           if (audioInitialized && !userPaused) {
-            bgAudio.play().catch(e => logVerbose(`Background play resume error: ${e.message}`, 'warn'));
+            bgAudio.play().then(() => {
+              if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+            }).catch(e => logVerbose(`Background play resume error: ${e.message}`, 'warn'));
           }
         } else {
           if (!userPaused) {
             video.currentTime = bgAudio.currentTime;
             video.play().catch(() => {});
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
             startSyncLoop(video, bgAudio);
           }
         }
@@ -592,13 +605,16 @@
             const bgAudio = document.getElementById('bg-audio-fallback');
             const video = document.getElementById('proxy-video-player');
             bgAudio.currentTime = video.currentTime;
-            bgAudio.play();
+            bgAudio.play().then(() => {
+              navigator.mediaSession.playbackState = 'playing';
+            });
             if (!document.hidden) video.play();
           });
           navigator.mediaSession.setActionHandler('pause', () => {
             userPaused = true;
             document.getElementById('proxy-video-player').pause();
             document.getElementById('bg-audio-fallback').pause();
+            navigator.mediaSession.playbackState = 'paused';
           });
         }
       } catch (e) {}
@@ -607,6 +623,7 @@
     function updateMediaSessionMetadata(title, channel, thumbnail) {
       if ('mediaSession' in navigator) {
         navigator.mediaSession.metadata = new MediaMetadata({ title, artist: channel, album: 'ZenTube', artwork: [{ src: thumbnail, sizes: '512x512', type: 'image/jpeg' }] });
+        navigator.mediaSession.playbackState = 'playing';
       }
     }
 
@@ -731,7 +748,6 @@
       proxyVideo.src = videoUrl;
       bgAudio.src = audioUrl;
 
-      // Unconditional initial alignment once both streams have data ready
       let readyCount = 0;
       const tryInitTime = () => {
         readyCount++;
@@ -787,6 +803,7 @@
       const bgAudio = document.getElementById('bg-audio-fallback');
       if (proxyVideo) { proxyVideo.pause(); proxyVideo.src = ''; proxyVideo.style.display = 'none'; }
       if (bgAudio) { bgAudio.pause(); bgAudio.src = ''; }
+      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
       document.getElementById('player-modal').classList.remove('active', 'docked');
     }
 
