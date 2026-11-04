@@ -479,13 +479,13 @@
       };
 
       video.onpause = () => {
-        // Differentiate User Pause vs App Background Transfer
+        // Strict isolation: if app is backgrounded, ignore video element pause events for background audio
         if (!isAppBackgrounded) {
           userPaused = true;
           logVerbose('User-prompted pause detected.');
           if (!bgAudio.paused) bgAudio.pause();
         } else {
-          logVerbose('App transfer pause detected. Background audio stream preserved.');
+          logVerbose('App backgrounded pause event isolated; background audio remains active.');
         }
       };
 
@@ -512,14 +512,14 @@
         logVerbose(`Visibility Change -> hidden: ${document.hidden}, userPaused: ${userPaused}`);
 
         if (document.hidden) {
-          // Transferring to background: pause video element, but keep audio alive
+          // App minimized: pause video renderer but ensure audio element continues playing independently
           video.pause();
           stopSyncLoop();
-          if (audioInitialized && bgAudio.paused && !userPaused) {
-            bgAudio.play().catch(() => {});
+          if (audioInitialized && !userPaused) {
+            bgAudio.play().catch(e => logVerbose(`Background play resume error: ${e.message}`, 'warn'));
           }
         } else {
-          // Returning to foreground: re-align and resume video
+          // App restored: re-sync video timeline with background audio stream
           if (!userPaused) {
             video.currentTime = bgAudio.currentTime;
             video.play().catch(() => {});
@@ -636,19 +636,19 @@
 
             availableAudioFormats = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('audio/'));
             
-            // Fool-proof Original / Default Language Sorting Algorithm
+            // Fool-proof Original / Default Audio Track Selection Algorithm
             availableAudioFormats.sort((a, b) => {
               const langA = (a.languageCode || '').toLowerCase();
               const langB = (b.languageCode || '').toLowerCase();
               
-              const isMatchA = langA === defaultLang || langA.startsWith(defaultLang) || (defaultLang.includes('en') && (!langA || langA === 'en'));
-              const isMatchB = langB === defaultLang || langB.startsWith(defaultLang) || (defaultLang.includes('en') && (!langB || langB === 'en'));
+              const isMatchA = langA === defaultLang || langA.startsWith(defaultLang) || (!langA && defaultLang.includes('en'));
+              const isMatchB = langB === defaultLang || langB.startsWith(defaultLang) || (!langB && defaultLang.includes('en'));
               
               const isOrigA = a.isOriginal === true || isMatchA;
               const isOrigB = b.isOriginal === true || isMatchB;
 
-              const isDubA = langA.includes('dub') || langA.includes('commentary') || langA.includes('descriptive');
-              const isDubB = langB.includes('dub') || langB.includes('commentary') || langB.includes('descriptive');
+              const isDubA = langA.includes('dub') || langA.includes('commentary') || langA.includes('descriptive') || langA.includes('es') || langA.includes('fr') || langA.includes('de');
+              const isDubB = langB.includes('dub') || langB.includes('commentary') || langB.includes('descriptive') || langB.includes('es') || langB.includes('fr') || langB.includes('de');
 
               if (isDubA && !isDubB) return 1;
               if (isDubB && !isDubA) return -1;
@@ -668,18 +668,10 @@
 
             const audioFormat = availableAudioFormats[0];
 
-            // Immediate Downshifting: Sort video formats starting with lightweight 720p/480p to eliminate startup latency
-            availableVideoFormats = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('video/') && (f.height || f.qualityLabel));
-            availableVideoFormats.sort((a, b) => {
-              const hA = a.height || parseInt(a.qualityLabel) || 0;
-              const hB = b.height || parseInt(b.qualityLabel) || 0;
-              // Target ~720p or 480p first for lightning-fast instant start (<1s)
-              const scoreA = Math.abs(hA - 720);
-              const scoreB = Math.abs(hB - 720);
-              return scoreA - scoreB;
-            });
-
-            const videoFormat = availableVideoFormats[0];
+            // Immediate lightning-fast startup format selection (targets smallest valid adaptive video stream)
+            availableVideoFormats = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('video/') && f.url);
+            availableVideoFormats.sort((a, b) => (a.height || 480) - (b.height || 480));
+            const videoFormat = availableVideoFormats[0] || data.adaptiveFormats.find(f => f.type && f.type.startsWith('video/'));
 
             if (audioFormat && videoFormat) {
               loadAudioAndVideoStreams(audioFormat, videoFormat, savedTime);
