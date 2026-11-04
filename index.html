@@ -245,7 +245,6 @@
     let currentQualityIndex = 0;
     let audioInitialized = false;
 
-    // Intent Flag Pattern state variables
     let lastUserInteraction = 0;
     let isExplicitUserPause = false;
 
@@ -263,7 +262,6 @@
         initGoogleAuth();
       }
 
-      // Track interaction intent for native control clicks
       document.addEventListener('pointerdown', () => {
         lastUserInteraction = Date.now();
       });
@@ -492,7 +490,6 @@
         }
       };
 
-      // Intent Flag Pattern Pause Handler
       video.onpause = () => {
         const isSystemHidden = document.hidden || document.visibilityState === 'hidden' || isAppBackgrounded;
         const timeSinceInteraction = Date.now() - lastUserInteraction;
@@ -539,6 +536,7 @@
         }
       };
 
+      // Zero-latency background transition listener
       document.addEventListener('visibilitychange', () => {
         isAppBackgrounded = document.hidden;
         logVerbose(`Visibility Change -> hidden: ${document.hidden}, userPaused: ${userPaused}`);
@@ -548,6 +546,7 @@
           userPaused = false;
           stopSyncLoop();
           if (audioInitialized) {
+            bgAudio.currentTime = video.currentTime; // Immediate pre-throttle time sync
             bgAudio.play().then(() => {
               if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
             }).catch(e => logVerbose(`Background play resume error: ${e.message}`, 'warn'));
