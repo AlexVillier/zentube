@@ -89,10 +89,10 @@
     }
 
     .player-container { width: 100%; aspect-ratio: 16 / 9; background: #000; position: relative; flex-shrink: 0; }
-    #youtube-player, #proxy-video-player { width: 100%; height: 100%; object-fit: contain; background: #000; display: none; }
+    #proxy-video-player { width: 100%; height: 100%; object-fit: contain; background: #000; display: block; }
 
     .player-details { padding: 16px; flex: 1; display: flex; flex-direction: column; gap: 12px; }
-    .debug-terminal { background: #000; border: 1px solid var(--border-color); border-radius: 10px; padding: 10px; font-family: monospace; font-size: 11px; color: var(--success-color); height: 140px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; white-space: pre-wrap; word-break: break-all; }
+    .debug-terminal { background: #000; border: 1px solid var(--border-color); border-radius: 10px; padding: 10px; font-family: monospace; font-size: 11px; color: var(--success-color); height: 150px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; white-space: pre-wrap; word-break: break-all; }
     .log-entry.error { color: #ff453a; }
     .log-entry.warn { color: #ffd60a; }
 
@@ -203,16 +203,12 @@
       </div>
     </div>
     <div class="player-container">
-      <div id="youtube-player"></div>
-      <video id="proxy-video-player" controls playsinline webkit-playsinline x-webkit-airplay="allow" crossorigin="anonymous"></video>
+      <video id="proxy-video-player" muted playsinline webkit-playsinline x-webkit-airplay="allow" crossorigin="anonymous"></video>
       <audio id="bg-audio-fallback" preload="auto" crossorigin="anonymous" style="display:none;"></audio>
     </div>
     <div class="player-details">
       <h2 id="modal-video-title" style="font-size: 18px; margin-bottom: 4px;"></h2>
       <p id="modal-channel-title" style="color: var(--text-secondary); font-size: 13px; margin-bottom: 8px;"></p>
-      <div style="display: flex; gap: 8px; margin-bottom: 10px;">
-        <button class="save-btn" style="flex: 1; padding: 10px; font-size: 14px; background: var(--success-color); color: #000;" onclick="forceUnlockWebAudio()">▶ Tap to Start Audio & Video</button>
-      </div>
       <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Live Verbose Debug Terminal</div>
       <div class="debug-terminal" id="debug-terminal">
         <div class="log-entry">[Init] Terminal ready.</div>
@@ -238,15 +234,12 @@
     let watchProgress = JSON.parse(localStorage.getItem('zentube_watch_progress') || '{}');
     let currentVideoId = null;
     let syncInterval = null;
-    let stallTimeout = null;
     let activeFeedVideos = [];
     let isExplicitUserPause = false;
     let isAppBackgrounded = false;
     let availableVideoFormats = [];
     let availableAudioFormats = [];
     let currentQualityIndex = 0;
-    let audioContext = null;
-    let audioNodeSource = null;
 
     const demoVideos = [
       { id: 'dQw4w9WgXcQ', title: 'Rick Astley - Never Gonna Give You Up', channel: 'Rick Astley', duration: 213, thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg' }
@@ -256,7 +249,7 @@
       document.getElementById('client-id-input').value = clientId;
       document.getElementById('proxy-url-input').value = proxyUrl;
       renderFeed(demoVideos, 'video-grid');
-      setupVerboseVideoListeners();
+      setupDualStreamListeners();
       setupBackgroundAudioHandlers();
       if (window.google && window.google.accounts) {
         initGoogleAuth();
@@ -474,30 +467,27 @@
       } catch (err) { grid.innerHTML = '<p style="color: var(--text-secondary);">Search failed.</p>'; }
     }
 
-    function setupVerboseVideoListeners() {
+    function setupDualStreamListeners() {
       const video = document.getElementById('proxy-video-player');
-      const bgAudio = document.getElementById('bg-audio-fallback');
-      if (!video || !bgAudio) return;
+      const audio = document.getElementById('bg-audio-fallback');
+      if (!video || !audio) return;
 
       video.onplay = () => {
         if (!isAppBackgrounded) isExplicitUserPause = false;
-        if (bgAudio.paused && !isAppBackgrounded) {
-          bgAudio.play().catch(e => logVerbose(`bgAudio play warning: ${e.message}`, 'warn'));
+        if (audio.paused && !isAppBackgrounded) {
+          audio.play().catch(e => logVerbose(`Audio play sync warning: ${e.message}`, 'warn'));
         }
       };
 
       video.onpause = () => {
         if (isExplicitUserPause && !isAppBackgrounded) {
-          logVerbose('User-prompted explicit pause detected.');
-          if (!bgAudio.paused) bgAudio.pause();
-        } else {
-          logVerbose('Browser/Background system pause event safely ignored; audio stream remains active.');
+          if (!audio.paused) audio.pause();
         }
       };
 
-      video.onseeking = () => { bgAudio.currentTime = video.currentTime; };
+      video.onseeking = () => { audio.currentTime = video.currentTime; };
       video.onseeked = () => {
-        if (!video.paused && !isExplicitUserPause && bgAudio.paused && !isAppBackgrounded) bgAudio.play().catch(() => {});
+        if (!video.paused && !isExplicitUserPause && audio.paused && !isAppBackgrounded) audio.play().catch(() => {});
       };
 
       document.addEventListener('visibilitychange', () => {
@@ -505,75 +495,19 @@
         logVerbose(`Visibility Change -> hidden: ${document.hidden}, isExplicitUserPause: ${isExplicitUserPause}`);
 
         if (document.hidden) {
-          video.pause();
+          video.pause(); // Pause video to save CPU/battery in background
           stopSyncLoop();
           if (!isExplicitUserPause) {
-            bgAudio.play().catch(e => logVerbose(`Background play resume error: ${e.message}`, 'warn'));
+            audio.play().catch(e => logVerbose(`Background audio continue warning: ${e.message}`, 'warn'));
           }
         } else {
           if (!isExplicitUserPause) {
-            video.currentTime = bgAudio.currentTime;
+            video.currentTime = audio.currentTime;
             video.play().catch(() => {});
-            startSyncLoop(video, bgAudio);
+            startSyncLoop(video, audio);
           }
         }
       });
-    }
-
-    function forceUnlockWebAudio() {
-      const bgAudio = document.getElementById('bg-audio-fallback');
-      const proxyVideo = document.getElementById('proxy-video-player');
-
-      try {
-        if (!audioContext) {
-          audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (audioContext.state === 'suspended') {
-          audioContext.resume();
-        }
-        if (!audioNodeSource && bgAudio.src) {
-          audioNodeSource = audioContext.createMediaElementSource(bgAudio);
-          audioNodeSource.connect(audioContext.destination);
-        }
-      } catch (err) {
-        logVerbose(`WebAudio routing notice: ${err.message}`, 'warn');
-      }
-
-      bgAudio.muted = false;
-      bgAudio.currentTime = proxyVideo.currentTime;
-      bgAudio.play().then(() => {
-        logVerbose('Web Audio Context & Media Element successfully unlocked.');
-        if (proxyVideo.paused && !isExplicitUserPause) proxyVideo.play();
-        startSyncLoop(proxyVideo, bgAudio);
-      }).catch(err => {
-        logVerbose(`Audio unlock failed: ${err.message}`, 'error');
-      });
-    }
-
-    function startStallMonitor() {
-      if (stallTimeout) return;
-      stallTimeout = setTimeout(() => {
-        if (availableVideoFormats.length > currentQualityIndex + 1) {
-          currentQualityIndex++;
-          const newFormat = availableVideoFormats[currentQualityIndex];
-          const proxyVideo = document.getElementById('proxy-video-player');
-          const savedTime = proxyVideo.currentTime;
-          let newUrl = newFormat.url.startsWith('http') ? newFormat.url : `${proxyUrl}${newFormat.url}`;
-          if (newUrl.includes('googlevideo.com')) {
-            const u = new URL(newUrl);
-            newUrl = `${proxyUrl}${u.pathname}${u.search}`;
-          }
-          newUrl = newUrl.includes('?') ? `${newUrl}&local=true` : `${newUrl}?local=true`;
-          logVerbose(`Network stall detected. Adapting quality down to: ${newFormat.qualityLabel || newFormat.height + 'p'}`, 'warn');
-          proxyVideo.src = newUrl;
-          proxyVideo.currentTime = savedTime;
-          proxyVideo.play();
-        }
-      }, 3500);
-    }
-
-    function clearStallMonitor() {
-      if (stallTimeout) { clearTimeout(stallTimeout); stallTimeout = null; }
     }
 
     function startSyncLoop(videoEl, audioEl) {
@@ -582,7 +516,6 @@
         if (!videoEl || !audioEl || videoEl.paused || audioEl.paused || document.hidden) return;
         const drift = Math.abs(videoEl.currentTime - audioEl.currentTime);
         if (drift > 0.8) {
-          logVerbose(`Sync drift detected: ${drift.toFixed(3)}s. Realigning audio.`);
           audioEl.currentTime = videoEl.currentTime;
           audioEl.playbackRate = 1.0;
         } else if (drift > 0.2) {
@@ -593,8 +526,8 @@
 
     function stopSyncLoop() {
       if (syncInterval) { clearInterval(syncInterval); syncInterval = null; }
-      const bgAudio = document.getElementById('bg-audio-fallback');
-      if (bgAudio) bgAudio.playbackRate = 1.0;
+      const audio = document.getElementById('bg-audio-fallback');
+      if (audio) audio.playbackRate = 1.0;
     }
 
     function setupBackgroundAudioHandlers() {
@@ -627,7 +560,7 @@
       isExplicitUserPause = false;
       isAppBackgrounded = false;
       currentQualityIndex = 0;
-      clearStallMonitor();
+      stopSyncLoop();
 
       const modal = document.getElementById('player-modal');
       modal.classList.remove('docked');
@@ -637,7 +570,7 @@
       document.getElementById('modal-channel-title').textContent = channel;
       document.getElementById('debug-terminal').innerHTML = '';
 
-      logVerbose(`Opening player for videoId: ${videoId}`);
+      logVerbose(`Opening dual-stream player for videoId: ${videoId}`);
       updateMediaSessionMetadata(title, channel, thumbnail || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`);
 
       const savedTime = watchProgress[videoId] ? watchProgress[videoId].currentTime : 0;
@@ -645,63 +578,42 @@
       const bgAudio = document.getElementById('bg-audio-fallback');
 
       if (proxyUrl) {
-        proxyVideo.style.display = 'block';
         try {
           const res = await fetch(`${proxyUrl}/api/v1/videos/${videoId}`);
           const data = await res.json();
 
           if (data.adaptiveFormats) {
             const defaultLang = (data.defaultAudioLanguage || data.lang || 'en').toLowerCase();
-            logVerbose(`Detected Video Default/Master Language: ${defaultLang}`);
+            logVerbose(`Detected Audio Language: ${defaultLang}`);
 
             availableAudioFormats = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('audio/'));
-            
-            if (defaultLang.includes('en')) {
-              const strictEnglish = availableAudioFormats.filter(f => {
-                const lc = (f.languageCode || '').toLowerCase();
-                if (lc && !lc.includes('en') && !lc.includes('default') && !lc.includes('orig')) return false;
-                return true;
-              });
-              if (strictEnglish.length > 0) availableAudioFormats = strictEnglish;
-            }
-
-            availableAudioFormats.sort((a, b) => {
-              const langA = (a.languageCode || '').toLowerCase();
-              const langB = (b.languageCode || '').toLowerCase();
-              const isDubA = langA.includes('dub') || langA.includes('commentary') || langA.includes('descriptive') || langA.includes('es') || langA.includes('fr') || langA.includes('de');
-              const isDubB = langB.includes('dub') || langB.includes('commentary') || langB.includes('descriptive') || langB.includes('es') || langB.includes('fr') || langB.includes('de');
-
-              if (isDubA && !isDubB) return 1;
-              if (isDubB && !isDubA) return -1;
-              return (b.bitrate || 0) - (a.bitrate || 0);
-            });
+            availableAudioFormats.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
 
             const selectEl = document.getElementById('audio-lang-select');
             selectEl.innerHTML = '';
             availableAudioFormats.forEach((fmt, index) => {
               const opt = document.createElement('option');
               opt.value = index;
-              opt.textContent = `${fmt.languageCode || 'Original/Master'} (${Math.round((fmt.bitrate || 0) / 1000)}kbps)`;
+              opt.textContent = `${fmt.languageCode || 'Original'} (${Math.round((fmt.bitrate || 0) / 1000)}kbps)`;
               selectEl.appendChild(opt);
             });
 
             const audioFormat = availableAudioFormats[0];
-
             availableVideoFormats = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('video/') && f.url);
             availableVideoFormats.sort((a, b) => (a.height || 480) - (b.height || 480));
             const videoFormat = availableVideoFormats[0] || data.adaptiveFormats.find(f => f.type && f.type.startsWith('video/'));
 
             if (audioFormat && videoFormat) {
-              loadAudioAndVideoStreams(audioFormat, videoFormat, savedTime);
+              loadDualStreams(audioFormat, videoFormat, savedTime);
               return;
             }
           }
-          throw new Error('Adaptive streams unavailable');
+          throw new Error('Adaptive dual-streams unavailable');
         } catch (err) { logVerbose(`Stream extraction error: ${err.message}`, 'error'); }
       }
     }
 
-    function loadAudioAndVideoStreams(audioFormat, videoFormat, savedTime) {
+    function loadDualStreams(audioFormat, videoFormat, savedTime) {
       const proxyVideo = document.getElementById('proxy-video-player');
       const bgAudio = document.getElementById('bg-audio-fallback');
 
@@ -719,18 +631,21 @@
       }
       videoUrl += (videoUrl.includes('?') ? '&' : '?') + 'local=true';
 
-      logVerbose(`Instant Start Stream Loaded (Lang: ${audioFormat.languageCode || 'Original'}, Resolution: ${videoFormat.height || 'HD'})`);
-      
-      const currentVidTime = proxyVideo.currentTime || savedTime;
-      proxyVideo.src = videoUrl;
-      proxyVideo.currentTime = currentVidTime;
-      bgAudio.src = audioUrl;
-      bgAudio.currentTime = currentVidTime;
+      logVerbose(`Dual Streams Loaded (Audio Lang: ${audioFormat.languageCode || 'Original'}, Video: ${videoFormat.height || 'HD'})`);
 
-      proxyVideo.play().catch(e => {
-        logVerbose(`Video autoplay restricted, forcing muted: ${e.message}`, 'warn');
-        proxyVideo.muted = true;
-        proxyVideo.play();
+      proxyVideo.muted = true; // Muted video element bypasses mobile video autoplay restrictions
+      proxyVideo.src = videoUrl;
+      proxyVideo.currentTime = savedTime;
+
+      bgAudio.src = audioUrl;
+      bgAudio.currentTime = savedTime;
+
+      proxyVideo.play().catch(e => logVerbose(`Muted video autoplay note: ${e.message}`, 'warn'));
+      bgAudio.play().then(() => {
+        logVerbose('Background audio stream playing successfully.');
+        startSyncLoop(proxyVideo, bgAudio);
+      }).catch(e => {
+        logVerbose(`Audio autoplay policy restriction: ${e.message}. Tap screen to unlock.`, 'error');
       });
     }
 
@@ -741,7 +656,7 @@
       const proxyVideo = document.getElementById('proxy-video-player');
       const bgAudio = document.getElementById('bg-audio-fallback');
 
-      logVerbose(`Manually switching audio track to index ${index} (Lang: ${selectedAudio.languageCode || 'Master'})`);
+      logVerbose(`Switching audio track to index ${index} (${selectedAudio.languageCode || 'Original'})`);
       
       let audioUrl = selectedAudio.url.startsWith('http') ? selectedAudio.url : `${proxyUrl}${selectedAudio.url}`;
       if (audioUrl.includes('googlevideo.com')) {
@@ -760,13 +675,11 @@
 
     function closePlayer() {
       stopSyncLoop();
-      clearStallMonitor();
       isExplicitUserPause = true;
       isAppBackgrounded = false;
-      audioNodeSource = null;
       const proxyVideo = document.getElementById('proxy-video-player');
       const bgAudio = document.getElementById('bg-audio-fallback');
-      if (proxyVideo) { proxyVideo.pause(); proxyVideo.src = ''; proxyVideo.style.display = 'none'; }
+      if (proxyVideo) { proxyVideo.pause(); proxyVideo.src = ''; }
       if (bgAudio) { bgAudio.pause(); bgAudio.src = ''; }
       document.getElementById('player-modal').classList.remove('active', 'docked');
     }
