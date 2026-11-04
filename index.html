@@ -205,11 +205,14 @@
     <div class="player-container">
       <div id="youtube-player"></div>
       <video id="proxy-video-player" controls playsinline webkit-playsinline x-webkit-airplay="allow" crossorigin="anonymous"></video>
-      <audio id="bg-audio-fallback" preload="auto" style="display:none;"></audio>
+      <audio id="bg-audio-fallback" preload="auto" crossorigin="anonymous" style="display:none;"></audio>
     </div>
     <div class="player-details">
       <h2 id="modal-video-title" style="font-size: 18px; margin-bottom: 4px;"></h2>
       <p id="modal-channel-title" style="color: var(--text-secondary); font-size: 13px; margin-bottom: 8px;"></p>
+      <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+        <button class="save-btn" style="flex: 1; padding: 8px;" onclick="forcePlayAudioStream()">🔊 Tap to Enable Audio</button>
+      </div>
       <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Live Verbose Debug Terminal</div>
       <div class="debug-terminal" id="debug-terminal">
         <div class="log-entry">[Init] Terminal ready.</div>
@@ -480,7 +483,7 @@
         if (!isAppBackgrounded) {
           isExplicitUserPause = false;
         }
-        if (audioInitialized && bgAudio.paused && video.readyState >= 3 && !isAppBackgrounded) {
+        if (audioInitialized && bgAudio.paused && !isAppBackgrounded) {
           bgAudio.play().catch(e => logVerbose(`bgAudio play warning: ${e.message}`, 'warn'));
         }
       };
@@ -498,11 +501,14 @@
         clearStallMonitor();
         if (!audioInitialized && !isExplicitUserPause) {
           audioInitialized = true;
+          bgAudio.muted = false;
           bgAudio.currentTime = video.currentTime;
           bgAudio.play().then(() => {
             logVerbose('Gated audio stream successfully synchronized & started with video.');
             startSyncLoop(video, bgAudio);
-          }).catch(e => { logVerbose(`Audio gated start restriction: ${e.message}`, 'warn'); });
+          }).catch(e => {
+            logVerbose(`Audio gated start restriction: ${e.message}`, 'warn');
+          });
         }
       };
 
@@ -529,6 +535,23 @@
           }
         }
       });
+    }
+
+    function forcePlayAudioStream() {
+      const bgAudio = document.getElementById('bg-audio-fallback');
+      const proxyVideo = document.getElementById('proxy-video-player');
+      if (bgAudio) {
+        bgAudio.muted = false;
+        bgAudio.currentTime = proxyVideo.currentTime;
+        bgAudio.play().then(() => {
+          logVerbose('Manual user gesture successfully unlocked audio stream.');
+          audioInitialized = true;
+          if (proxyVideo.paused && !isExplicitUserPause) proxyVideo.play();
+          startSyncLoop(proxyVideo, bgAudio);
+        }).catch(err => {
+          logVerbose(`Manual audio unlock failed: ${err.message}`, 'error');
+        });
+      }
     }
 
     function startStallMonitor() {
