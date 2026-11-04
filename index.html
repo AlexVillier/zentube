@@ -104,7 +104,7 @@
     .channel-detail-view.active { display: flex; }
     .channel-detail-header { padding: 16px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border-color); }
 
-    nav.bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; height: calc(var(--nav-height) + var(--safe-bottom)); background: rgba(23, 23, 26, 0.95); backdrop-filter: blur(20px); border-top: 1px solid var(--border-color); display: flex; justify-around: space-around; padding-bottom: var(--safe-bottom); z-index: 100; }
+    nav.bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; height: calc(var(--nav-height) + var(--safe-bottom)); background: rgba(23, 23, 26, 0.95); backdrop-filter: blur(20px); border-top: 1px solid var(--border-color); display: flex; justify-content: space-around; padding-bottom: var(--safe-bottom); z-index: 100; }
     .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 11px; gap: 4px; cursor: pointer; width: 25%; }
     .nav-item.active { color: var(--text-primary); }
     .nav-icon { font-size: 18px; }
@@ -515,7 +515,7 @@
           video.pause();
           stopSyncLoop();
           if (audioInitialized && !userPaused) {
-            bgAudio.play().catch(e => logVerbose(`Background play resume error: ${e.message}`, 'warn');
+            bgAudio.play().catch(e => logVerbose(`Background play resume error: ${e.message}`, 'warn'));
           }
         } else {
           if (!userPaused) {
@@ -560,13 +560,11 @@
         const drift = videoEl.currentTime - audioEl.currentTime;
         const absDrift = Math.abs(drift);
 
-        // Aggressive micro-correction before drift builds up
         if (absDrift > 0.4) {
           logVerbose(`Sync drift corrected (${drift.toFixed(3)}s). Realigning clocks.`);
           audioEl.currentTime = videoEl.currentTime;
           audioEl.playbackRate = 1.0;
         } else if (absDrift > 0.08) {
-          // Smooth pitch-preserving micro-speed adjustment to eliminate drift
           audioEl.playbackRate = drift > 0 ? 1.02 : 0.98;
         } else {
           audioEl.playbackRate = 1.0;
@@ -640,7 +638,6 @@
 
             availableAudioFormats = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('audio/'));
             
-            // Deterministic Audio Scoring Function prioritizing AAC (audio/mp4) to prevent cross-codec drift
             const evaluateStreamScore = (fmt) => {
               let score = 0;
               const lang = (fmt.languageCode || '').toLowerCase();
@@ -655,7 +652,6 @@
                 score += 500;
               }
 
-              // Heavy bonus for AAC / MP4 audio containers to match standard hardware video clocks
               if (type.includes('mp4') || type.includes('m4a')) {
                 score += 400;
               }
