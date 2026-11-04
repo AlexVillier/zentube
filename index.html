@@ -90,6 +90,15 @@
 
     .player-container { width: 100%; aspect-ratio: 16 / 9; background: #000; position: relative; flex-shrink: 0; }
     #proxy-video-player { width: 100%; height: 100%; object-fit: contain; background: #000; display: block; }
+    
+    .audio-unlock-overlay {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.75); display: none; flex-direction: column;
+      align-items: center; justify-content: center; z-index: 20; cursor: pointer;
+      backdrop-filter: blur(4px);
+    }
+    .audio-unlock-overlay.active { display: flex; }
+    .unlock-btn-badge { background: var(--success-color); color: #000; font-weight: 700; padding: 10px 20px; border-radius: 24px; font-size: 14px; box-shadow: 0 4px 15px rgba(48,209,88,0.4); }
 
     .player-details { padding: 16px; flex: 1; display: flex; flex-direction: column; gap: 12px; }
     .debug-terminal { background: #000; border: 1px solid var(--border-color); border-radius: 10px; padding: 10px; font-family: monospace; font-size: 11px; color: var(--success-color); height: 150px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; white-space: pre-wrap; word-break: break-all; }
@@ -205,6 +214,9 @@
     <div class="player-container">
       <video id="proxy-video-player" muted playsinline webkit-playsinline x-webkit-airplay="allow" crossorigin="anonymous"></video>
       <audio id="bg-audio-fallback" preload="auto" crossorigin="anonymous" style="display:none;"></audio>
+      <div class="audio-unlock-overlay" id="audio-unlock-overlay" onclick="unlockAndPlayAudio()">
+        <div class="unlock-btn-badge">🔊 Tap to Unmute & Play Audio</div>
+      </div>
     </div>
     <div class="player-details">
       <h2 id="modal-video-title" style="font-size: 18px; margin-bottom: 4px;"></h2>
@@ -239,7 +251,6 @@
     let isAppBackgrounded = false;
     let availableVideoFormats = [];
     let availableAudioFormats = [];
-    let currentQualityIndex = 0;
 
     const demoVideos = [
       { id: 'dQw4w9WgXcQ', title: 'Rick Astley - Never Gonna Give You Up', channel: 'Rick Astley', duration: 213, thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg' }
@@ -475,7 +486,10 @@
       video.onplay = () => {
         if (!isAppBackgrounded) isExplicitUserPause = false;
         if (audio.paused && !isAppBackgrounded) {
-          audio.play().catch(e => logVerbose(`Audio play sync warning: ${e.message}`, 'warn'));
+          audio.play().catch(e => {
+            logVerbose(`Audio play sync warning: ${e.message}`, 'warn');
+            document.getElementById('audio-unlock-overlay').classList.add('active');
+          });
         }
       };
 
@@ -495,7 +509,7 @@
         logVerbose(`Visibility Change -> hidden: ${document.hidden}, isExplicitUserPause: ${isExplicitUserPause}`);
 
         if (document.hidden) {
-          video.pause(); // Pause video to save CPU/battery in background
+          video.pause();
           stopSyncLoop();
           if (!isExplicitUserPause) {
             audio.play().catch(e => logVerbose(`Background audio continue warning: ${e.message}`, 'warn'));
@@ -507,6 +521,20 @@
             startSyncLoop(video, audio);
           }
         }
+      });
+    }
+
+    function unlockAndPlayAudio() {
+      const audio = document.getElementById('bg-audio-fallback');
+      const video = document.getElementById('proxy-video-player');
+      audio.currentTime = video.currentTime;
+      audio.play().then(() => {
+        logVerbose('Audio unlocked successfully via user interaction.');
+        document.getElementById('audio-unlock-overlay').classList.remove('active');
+        if (video.paused && !isExplicitUserPause) video.play();
+        startSyncLoop(video, audio);
+      }).catch(e => {
+        logVerbose(`Manual audio unlock failed: ${e.message}`, 'error');
       });
     }
 
@@ -559,7 +587,6 @@
       currentVideoId = videoId;
       isExplicitUserPause = false;
       isAppBackgrounded = false;
-      currentQualityIndex = 0;
       stopSyncLoop();
 
       const modal = document.getElementById('player-modal');
@@ -569,6 +596,7 @@
       document.getElementById('modal-video-title').textContent = title;
       document.getElementById('modal-channel-title').textContent = channel;
       document.getElementById('debug-terminal').innerHTML = '';
+      document.getElementById('audio-unlock-overlay').classList.remove('active');
 
       logVerbose(`Opening dual-stream player for videoId: ${videoId}`);
       updateMediaSessionMetadata(title, channel, thumbnail || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`);
@@ -633,7 +661,7 @@
 
       logVerbose(`Dual Streams Loaded (Audio Lang: ${audioFormat.languageCode || 'Original'}, Video: ${videoFormat.height || 'HD'})`);
 
-      proxyVideo.muted = true; // Muted video element bypasses mobile video autoplay restrictions
+      proxyVideo.muted = true;
       proxyVideo.src = videoUrl;
       proxyVideo.currentTime = savedTime;
 
@@ -645,7 +673,8 @@
         logVerbose('Background audio stream playing successfully.');
         startSyncLoop(proxyVideo, bgAudio);
       }).catch(e => {
-        logVerbose(`Audio autoplay policy restriction: ${e.message}. Tap screen to unlock.`, 'error');
+        logVerbose(`Audio autoplay restricted: ${e.message}`, 'warn');
+        document.getElementById('audio-unlock-overlay').classList.add('active');
       });
     }
 
@@ -669,7 +698,9 @@
       bgAudio.src = audioUrl;
       bgAudio.currentTime = currentTime;
       if (!isExplicitUserPause && !isAppBackgrounded) {
-        bgAudio.play().catch(() => {});
+        bgAudio.play().catch(() => {
+          document.getElementById('audio-unlock-overlay').classList.add('active');
+        });
       }
     }
 
