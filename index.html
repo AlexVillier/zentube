@@ -91,15 +91,6 @@
     .player-container { width: 100%; aspect-ratio: 16 / 9; background: #000; position: relative; flex-shrink: 0; }
     #youtube-player, #proxy-video-player { width: 100%; height: 100%; object-fit: contain; background: #000; display: none; }
 
-    .audio-unlock-overlay {
-      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.75); display: none; flex-direction: column;
-      align-items: center; justify-content: center; z-index: 20; cursor: pointer;
-      backdrop-filter: blur(4px);
-    }
-    .audio-unlock-overlay.active { display: flex; }
-    .unlock-btn-badge { background: var(--success-color); color: #000; font-weight: 700; padding: 10px 20px; border-radius: 24px; font-size: 14px; box-shadow: 0 4px 15px rgba(48,209,88,0.4); }
-
     .player-details { padding: 16px; flex: 1; display: flex; flex-direction: column; gap: 12px; }
     .debug-terminal { background: #000; border: 1px solid var(--border-color); border-radius: 10px; padding: 10px; font-family: monospace; font-size: 11px; color: var(--success-color); height: 160px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; white-space: pre-wrap; word-break: break-all; }
     .log-entry.error { color: #ff453a; }
@@ -214,10 +205,7 @@
     <div class="player-container">
       <div id="youtube-player"></div>
       <video id="proxy-video-player" controls playsinline webkit-playsinline x-webkit-airplay="allow" crossorigin="anonymous"></video>
-      <audio id="bg-audio-fallback" preload="auto" crossorigin="anonymous" style="display:none;"></audio>
-      <div class="audio-unlock-overlay" id="audio-unlock-overlay" onclick="unlockAndPlayAudio()">
-        <div class="unlock-btn-badge">🔊 Tap to Unmute & Play Audio</div>
-      </div>
+      <audio id="bg-audio-fallback" preload="auto" style="display:none;"></audio>
     </div>
     <div class="player-details">
       <h2 id="modal-video-title" style="font-size: 18px; margin-bottom: 4px;"></h2>
@@ -486,10 +474,7 @@
           userPaused = false;
         }
         if (audioInitialized && bgAudio.paused && video.readyState >= 3 && !isAppBackgrounded) {
-          bgAudio.play().catch(e => {
-            logVerbose(`bgAudio play warning: ${e.message}`, 'warn');
-            document.getElementById('audio-unlock-overlay').classList.add('active');
-          });
+          bgAudio.play().catch(e => logVerbose(`bgAudio play warning: ${e.message}`, 'warn'));
         }
       };
 
@@ -511,20 +496,13 @@
           bgAudio.play().then(() => {
             logVerbose('Gated audio stream successfully synchronized & started with video.');
             startSyncLoop(video, bgAudio);
-          }).catch(e => {
-            logVerbose(`Audio gated start restriction: ${e.message}`, 'warn');
-            document.getElementById('audio-unlock-overlay').classList.add('active');
-          });
+          }).catch(e => { logVerbose(`Audio gated start restriction: ${e.message}`, 'warn'); });
         }
       };
 
       video.onseeking = () => { bgAudio.currentTime = video.currentTime; };
       video.onseeked = () => {
-        if (!video.paused && !userPaused && bgAudio.paused && !isAppBackgrounded) {
-          bgAudio.play().catch(() => {
-            document.getElementById('audio-unlock-overlay').classList.add('active');
-          });
-        }
+        if (!video.paused && !userPaused && bgAudio.paused && !isAppBackgrounded) bgAudio.play().catch(() => {});
       };
 
       document.addEventListener('visibilitychange', () => {
@@ -544,20 +522,6 @@
             startSyncLoop(video, bgAudio);
           }
         }
-      });
-    }
-
-    function unlockAndPlayAudio() {
-      const audio = document.getElementById('bg-audio-fallback');
-      const video = document.getElementById('proxy-video-player');
-      audio.currentTime = video.currentTime;
-      audio.play().then(() => {
-        logVerbose('Audio unlocked successfully via user gesture.');
-        document.getElementById('audio-unlock-overlay').classList.remove('active');
-        if (video.paused && !userPaused) video.play();
-        startSyncLoop(video, audio);
-      }).catch(e => {
-        logVerbose(`Manual audio unlock failed: ${e.message}`, 'error');
       });
     }
 
@@ -648,7 +612,6 @@
       document.getElementById('modal-video-title').textContent = title;
       document.getElementById('modal-channel-title').textContent = channel;
       document.getElementById('debug-terminal').innerHTML = '';
-      document.getElementById('audio-unlock-overlay').classList.remove('active');
 
       logVerbose(`Opening player for videoId: ${videoId}`);
       updateMediaSessionMetadata(title, channel, thumbnail || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`);
@@ -674,16 +637,22 @@
               const langA = (a.languageCode || '').toLowerCase();
               const langB = (b.languageCode || '').toLowerCase();
               
-              const isDubA = langA.includes('dub') || langA.includes('commentary') || langA.includes('descriptive') || langA.includes('es') || langA.includes('fr') || langA.includes('de');
-              const isDubB = langB.includes('dub') || langB.includes('commentary') || langB.includes('descriptive') || langB.includes('es') || langB.includes('fr') || langB.includes('de');
+              const isDefaultLangA = langA === defaultLang || langA.startsWith(defaultLang);
+              const isDefaultLangB = langB === defaultLang || langB.startsWith(defaultLang);
 
-              const isOriginalA = a.isOriginal === true || langA === defaultLang || langA.startsWith(defaultLang) || langA === '' || langA.includes('origin');
-              const isOriginalB = b.isOriginal === true || langB === defaultLang || langB.startsWith(defaultLang) || langB === '' || langB.includes('origin');
+              const foreignPrefixes = ['es', 'fr', 'de', 'ja', 'hi', 'ru', 'pt', 'it', 'ko', 'zh', 'dub', 'commentary', 'descriptive'];
+              const isWrongLangA = defaultLang.startsWith('en') && foreignPrefixes.some(p => langA.startsWith(p) || langA === p);
+              const isWrongLangB = defaultLang.startsWith('en') && foreignPrefixes.some(p => langB.startsWith(p) || langB === p);
 
-              if (isDubA && !isDubB) return 1;
-              if (isDubB && !isDubA) return -1;
-              if (isOriginalA && !isOriginalB) return -1;
-              if (isOriginalB && !isOriginalA) return 1;
+              if (isWrongLangA && !isWrongLangB) return 1;
+              if (isWrongLangB && !isWrongLangA) return -1;
+
+              if (isDefaultLangA && !isDefaultLangB) return -1;
+              if (isDefaultLangB && !isDefaultLangA) return 1;
+
+              if (a.isOriginal === true && b.isOriginal !== true) return -1;
+              if (b.isOriginal === true && a.isOriginal !== true) return 1;
+
               return (b.bitrate || 0) - (a.bitrate || 0);
             });
 
@@ -765,9 +734,7 @@
       bgAudio.src = audioUrl;
       bgAudio.currentTime = currentTime;
       if (!userPaused && !isAppBackgrounded) {
-        bgAudio.play().catch(() => {
-          document.getElementById('audio-unlock-overlay').classList.add('active');
-        });
+        bgAudio.play().catch(() => {});
       }
     }
 
