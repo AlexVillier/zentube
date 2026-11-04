@@ -104,7 +104,7 @@
     .channel-detail-view.active { display: flex; }
     .channel-detail-header { padding: 16px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border-color); }
 
-    nav.bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; height: calc(var(--nav-height) + var(--safe-bottom)); background: rgba(23, 23, 26, 0.95); backdrop-filter: blur(20px); border-top: 1px solid var(--border-color); display: flex; justify-content: space-around; padding-bottom: var(--safe-bottom); z-index: 100; }
+    nav.bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; height: calc(var(--nav-height) + var(--safe-bottom)); background: rgba(23, 23, 26, 0.95); backdrop-filter: blur(20px); border-top: 1px solid var(--border-color); display: flex; justify-around: space-around; padding-bottom: var(--safe-bottom); z-index: 100; }
     .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 11px; gap: 4px; cursor: pointer; width: 25%; }
     .nav-item.active { color: var(--text-primary); }
     .nav-icon { font-size: 18px; }
@@ -632,38 +632,52 @@
 
             availableAudioFormats = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('audio/'));
             
-            // --- DEBUG LOGGING: Inspect raw audio streams before sorting ---
             logVerbose(`--- RAW AUDIO FORMATS (${availableAudioFormats.length}) ---`);
             availableAudioFormats.forEach((f, idx) => {
-              logVerbose(`[Raw ${idx}] lang: "${f.languageCode || 'EMPTY'}", bitrate: ${f.bitrate || 0}, isOriginal: ${f.isOriginal}`);
+              logVerbose(`[Raw ${idx}] lang: "${f.languageCode || 'EMPTY'}", bitrate: ${f.bitrate || 0}, type: "${f.type}"`);
             });
 
-            // Robust Original Audio Track Sorting Algorithm with Bitrate Tie-Breaking for EMPTY tags
-            availableAudioFormats.sort((a, b) => {
-              const langA = (a.languageCode || '').toLowerCase();
-              const langB = (b.languageCode || '').toLowerCase();
-              
+            // Deterministic Stereo Bitrate & Profile Scoring Function
+            const evaluateStreamScore = (fmt) => {
+              let score = 0;
+              const lang = (fmt.languageCode || '').toLowerCase();
+              const bitrate = fmt.bitrate || 0;
+              const type = fmt.type || '';
+
+              // 1. Language Filtering: Reject dubs/commentary
               const dubKeywords = ['dub', 'desc', 'commentary', 'es', 'fr', 'de', 'ja', 'hi', 'ru', 'pt', 'it', 'ko', 'zh'];
-              const isDubA = dubKeywords.some(kw => langA.includes(kw));
-              const isDubB = dubKeywords.some(kw => langB.includes(kw));
+              const isDub = dubKeywords.some(kw => lang.includes(kw));
+              if (isDub) score -= 1000;
 
-              if (isDubA && !isDubB) return 1;
-              if (isDubB && !isDubA) return -1;
+              // 2. Primary / Original Language bonus
+              if (lang === '' || lang === defaultLang || lang.startsWith(defaultLang)) {
+                score += 500;
+              }
 
-              const isPrimaryA = langA === '' || langA === defaultLang || langA.startsWith(defaultLang);
-              const isPrimaryB = langB === '' || langB === defaultLang || langB.startsWith(defaultLang);
+              // 3. Container Preference: AAC (audio/mp4) standard stereo
+              if (type.includes('mp4') || type.includes('m4a')) {
+                score += 100;
+              }
 
-              if (isPrimaryA && !isPrimaryB) return -1;
-              if (isPrimaryB && !isPrimaryA) return 1;
+              // 4. Target Bitrate Alignment: Standard Stereo (~120kbps - ~160kbps)
+              // Penalty for sub-100kbps (preview) or 160kbps+ (multi-channel / dubbed spatial audio)
+              if (bitrate >= 120000 && bitrate <= 160000) {
+                score += 300;
+              } else if (bitrate > 160000) {
+                score -= 100;
+              } else {
+                score -= 200;
+              }
 
-              // Tie-breaker: Highest bitrate first for standard/empty streams
-              return (b.bitrate || 0) - (a.bitrate || 0);
-            });
+              return score;
+            };
 
-            // --- DEBUG LOGGING: Inspect sorted audio streams after sorting ---
-            logVerbose(`--- SORTED AUDIO FORMATS ---`);
+            // Sort formats deterministically by score
+            availableAudioFormats.sort((a, b) => evaluateStreamScore(b) - evaluateStreamScore(a));
+
+            logVerbose(`--- DETERMINISTICALLY SORTED AUDIO FORMATS ---`);
             availableAudioFormats.forEach((f, idx) => {
-              logVerbose(`[Sorted ${idx}] lang: "${f.languageCode || 'EMPTY'}", bitrate: ${f.bitrate || 0}`);
+              logVerbose(`[Sorted ${idx}] Score: ${evaluateStreamScore(f)}, lang: "${f.languageCode || 'EMPTY'}", bitrate: ${f.bitrate || 0}`);
             });
 
             const selectEl = document.getElementById('audio-lang-select');
@@ -716,7 +730,6 @@
       proxyVideo.src = videoUrl;
       bgAudio.src = audioUrl;
 
-      // Fix initial sync drift by setting currentTime safely upon loadedmetadata
       proxyVideo.onloadedmetadata = () => {
         proxyVideo.currentTime = targetTime;
       };
