@@ -560,12 +560,14 @@
         const drift = videoEl.currentTime - audioEl.currentTime;
         const absDrift = Math.abs(drift);
 
-        if (absDrift > 0.4) {
-          logVerbose(`Sync drift corrected (${drift.toFixed(3)}s). Realigning clocks.`);
+        // Increased threshold to 1.2s to prevent constant network re-buffering loops
+        if (absDrift > 1.2) {
+          logVerbose(`Hard sync correction (${drift.toFixed(3)}s). Realigning clocks.`);
           audioEl.currentTime = videoEl.currentTime;
           audioEl.playbackRate = 1.0;
-        } else if (absDrift > 0.08) {
-          audioEl.playbackRate = drift > 0 ? 1.02 : 0.98;
+        } else if (absDrift > 0.15) {
+          // Smooth progressive playback rate adjustment
+          audioEl.playbackRate = drift > 0 ? 1.05 : 0.95;
         } else {
           audioEl.playbackRate = 1.0;
         }
@@ -724,12 +726,18 @@
       proxyVideo.src = videoUrl;
       bgAudio.src = audioUrl;
 
-      proxyVideo.onloadedmetadata = () => {
-        proxyVideo.currentTime = targetTime;
+      // Robust initial alignment once both streams have data ready
+      let readyCount = 0;
+      const tryInitTime = () => {
+        readyCount++;
+        if (readyCount >= 2 && targetTime > 0) {
+          proxyVideo.currentTime = targetTime;
+          bgAudio.currentTime = targetTime;
+        }
       };
-      bgAudio.onloadedmetadata = () => {
-        bgAudio.currentTime = targetTime;
-      };
+
+      proxyVideo.onloadeddata = tryInitTime;
+      bgAudio.onloadeddata = tryInitTime;
 
       proxyVideo.play().catch(e => {
         logVerbose(`Video autoplay restricted, forcing muted: ${e.message}`, 'warn');
@@ -756,7 +764,7 @@
 
       const currentTime = proxyVideo.currentTime;
       bgAudio.src = audioUrl;
-      bgAudio.onloadedmetadata = () => {
+      bgAudio.onloadeddata = () => {
         bgAudio.currentTime = currentTime;
       };
       if (!userPaused && !isAppBackgrounded) {
