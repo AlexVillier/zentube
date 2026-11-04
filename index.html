@@ -224,10 +224,6 @@
     <div class="nav-item" onclick="switchTab('settings-view', this)"><div class="nav-icon">⚙️</div><span>Settings</span></div>
   </nav>
 
-<Carousel>
-  <Video source="youtube" query="lofi hip hop radio beats to study relax to" count="3"/>
-</Carousel>
-
   <script src="https://accounts.google.com/gsi/client" async defer onload="initGoogleAuth()"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
 
@@ -487,8 +483,8 @@
       };
 
       video.onpause = () => {
-        // Prevent background blur/lock pause events from triggering userPaused state
-        if (document.hidden || isAppBackgrounded) {
+        // Immediately intercept system/background pause events before any userPaused state check
+        if (document.hidden || document.visibilityState === 'hidden' || isAppBackgrounded) {
           logVerbose('Background pause event isolated; keeping audio session active.');
           if (bgAudio.paused && !userPaused) {
             bgAudio.play().catch(() => {});
@@ -530,6 +526,7 @@
         logVerbose(`Visibility Change -> hidden: ${document.hidden}, userPaused: ${userPaused}`);
 
         if (document.hidden) {
+          isAppBackgrounded = true;
           stopSyncLoop();
           if (audioInitialized && !userPaused) {
             bgAudio.play().then(() => {
@@ -537,6 +534,7 @@
             }).catch(e => logVerbose(`Background play resume error: ${e.message}`, 'warn'));
           }
         } else {
+          isAppBackgrounded = false;
           if (!userPaused) {
             video.currentTime = bgAudio.currentTime;
             video.play().catch(() => {});
