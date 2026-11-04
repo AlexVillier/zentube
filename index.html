@@ -238,7 +238,7 @@
     let syncInterval = null;
     let stallTimeout = null;
     let activeFeedVideos = [];
-    let userPaused = false;
+    let isExplicitUserPause = false;
     let isAppBackgrounded = false;
     let availableVideoFormats = [];
     let availableAudioFormats = [];
@@ -471,7 +471,7 @@
 
       video.onplay = () => {
         if (!isAppBackgrounded) {
-          userPaused = false;
+          isExplicitUserPause = false;
         }
         if (audioInitialized && bgAudio.paused && video.readyState >= 3 && !isAppBackgrounded) {
           bgAudio.play().catch(e => logVerbose(`bgAudio play warning: ${e.message}`, 'warn'));
@@ -479,19 +479,18 @@
       };
 
       video.onpause = () => {
-        // Strict isolation: if app is backgrounded, ignore video element pause events for background audio
-        if (!isAppBackgrounded) {
-          userPaused = true;
-          logVerbose('User-prompted pause detected.');
+        // Strict Isolation: Ignore browser-level system pause events when app is backgrounded
+        if (isExplicitUserPause && !isAppBackgrounded) {
+          logVerbose('User-prompted explicit pause detected.');
           if (!bgAudio.paused) bgAudio.pause();
         } else {
-          logVerbose('App backgrounded pause event isolated; background audio remains active.');
+          logVerbose('Browser/Background system pause event safely ignored; audio stream remains active.');
         }
       };
 
       video.oncanplay = () => {
         clearStallMonitor();
-        if (!audioInitialized && !userPaused) {
+        if (!audioInitialized && !isExplicitUserPause) {
           audioInitialized = true;
           bgAudio.currentTime = video.currentTime;
           bgAudio.play().then(() => {
@@ -503,24 +502,24 @@
 
       video.onseeking = () => { bgAudio.currentTime = video.currentTime; };
       video.onseeked = () => {
-        if (!video.paused && !userPaused && bgAudio.paused && !isAppBackgrounded) bgAudio.play().catch(() => {});
+        if (!video.paused && !isExplicitUserPause && bgAudio.paused && !isAppBackgrounded) bgAudio.play().catch(() => {});
       };
 
       // Robust App Background / Foreground State Differentiator
       document.addEventListener('visibilitychange', () => {
         isAppBackgrounded = document.hidden;
-        logVerbose(`Visibility Change -> hidden: ${document.hidden}, userPaused: ${userPaused}`);
+        logVerbose(`Visibility Change -> hidden: ${document.hidden}, isExplicitUserPause: ${isExplicitUserPause}`);
 
         if (document.hidden) {
           // App minimized: pause video renderer but ensure audio element continues playing independently
           video.pause();
           stopSyncLoop();
-          if (audioInitialized && !userPaused) {
+          if (audioInitialized && !isExplicitUserPause) {
             bgAudio.play().catch(e => logVerbose(`Background play resume error: ${e.message}`, 'warn'));
           }
         } else {
           // App restored: re-sync video timeline with background audio stream
-          if (!userPaused) {
+          if (!isExplicitUserPause) {
             video.currentTime = bgAudio.currentTime;
             video.play().catch(() => {});
             startSyncLoop(video, bgAudio);
@@ -581,13 +580,13 @@
         if (navigator.audioSession) navigator.audioSession.type = 'playback';
         if ('mediaSession' in navigator) {
           navigator.mediaSession.setActionHandler('play', () => {
-            userPaused = false;
+            isExplicitUserPause = false;
             isAppBackgrounded = false;
             document.getElementById('bg-audio-fallback').play();
             if (!document.hidden) document.getElementById('proxy-video-player').play();
           });
           navigator.mediaSession.setActionHandler('pause', () => {
-            userPaused = true;
+            isExplicitUserPause = true;
             document.getElementById('proxy-video-player').pause();
             document.getElementById('bg-audio-fallback').pause();
           });
@@ -603,7 +602,7 @@
 
     async function openPlayer(videoId, title, channel, thumbnail = '') {
       currentVideoId = videoId;
-      userPaused = false;
+      isExplicitUserPause = false;
       isAppBackgrounded = false;
       audioInitialized = false;
       currentQualityIndex = 0;
@@ -636,24 +635,26 @@
 
             availableAudioFormats = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('audio/'));
             
-            // Fool-proof Original / Default Audio Track Selection Algorithm
+            // Hard Linguistic Filter: If target is English, completely discard non-English/dub tracks
+            if (defaultLang.includes('en')) {
+              const strictEnglish = availableAudioFormats.filter(f => {
+                const lc = (f.languageCode || '').toLowerCase();
+                if (lc && !lc.includes('en') && !lc.includes('default') && !lc.includes('orig')) return false;
+                return true;
+              });
+              if (strictEnglish.length > 0) {
+                availableAudioFormats = strictEnglish;
+              }
+            }
+
             availableAudioFormats.sort((a, b) => {
               const langA = (a.languageCode || '').toLowerCase();
               const langB = (b.languageCode || '').toLowerCase();
-              
-              const isMatchA = langA === defaultLang || langA.startsWith(defaultLang) || (!langA && defaultLang.includes('en'));
-              const isMatchB = langB === defaultLang || langB.startsWith(defaultLang) || (!langB && defaultLang.includes('en'));
-              
-              const isOrigA = a.isOriginal === true || isMatchA;
-              const isOrigB = b.isOriginal === true || isMatchB;
-
               const isDubA = langA.includes('dub') || langA.includes('commentary') || langA.includes('descriptive') || langA.includes('es') || langA.includes('fr') || langA.includes('de');
               const isDubB = langB.includes('dub') || langB.includes('commentary') || langB.includes('descriptive') || langB.includes('es') || langB.includes('fr') || langB.includes('de');
 
               if (isDubA && !isDubB) return 1;
               if (isDubB && !isDubA) return -1;
-              if (isOrigA && !isOrigB) return -1;
-              if (isOrigB && !isOrigA) return 1;
               return (b.bitrate || 0) - (a.bitrate || 0);
             });
 
@@ -735,7 +736,7 @@
       const currentTime = proxyVideo.currentTime;
       bgAudio.src = audioUrl;
       bgAudio.currentTime = currentTime;
-      if (!userPaused && !isAppBackgrounded) {
+      if (!isExplicitUserPause && !isAppBackgrounded) {
         bgAudio.play().catch(() => {});
       }
     }
@@ -743,7 +744,7 @@
     function closePlayer() {
       stopSyncLoop();
       clearStallMonitor();
-      userPaused = true;
+      isExplicitUserPause = true;
       isAppBackgrounded = false;
       audioInitialized = false;
       const proxyVideo = document.getElementById('proxy-video-player');
@@ -784,7 +785,7 @@
     }
 
     function saveProxyUrl() {
-      proxyUrl = document.getElementById('proxy-url-input').value.trim().replace(/\/$/, '');
+      proxyUrl = document.getElementById('proxy-url-input'].value.trim().replace(/\/$/, '');
       localStorage.setItem('zentube_proxy_url', proxyUrl);
       alert('Proxy Saved!');
     }
