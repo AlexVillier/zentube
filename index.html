@@ -638,7 +638,7 @@
               logVerbose(`[Raw ${idx}] lang: "${f.languageCode || 'EMPTY'}", bitrate: ${f.bitrate || 0}, isOriginal: ${f.isOriginal}`);
             });
 
-            // Robust Original Audio Track Sorting Algorithm with Debug Logging
+            // Robust Original Audio Track Sorting Algorithm with Bitrate Tie-Breaking for EMPTY tags
             availableAudioFormats.sort((a, b) => {
               const langA = (a.languageCode || '').toLowerCase();
               const langB = (b.languageCode || '').toLowerCase();
@@ -656,7 +656,8 @@
               if (isPrimaryA && !isPrimaryB) return -1;
               if (isPrimaryB && !isPrimaryA) return 1;
 
-              return 0;
+              // Tie-breaker: Highest bitrate first for standard/empty streams
+              return (b.bitrate || 0) - (a.bitrate || 0);
             });
 
             // --- DEBUG LOGGING: Inspect sorted audio streams after sorting ---
@@ -710,11 +711,18 @@
 
       logVerbose(`Instant Start Stream Loaded (Lang: ${audioFormat.languageCode || 'Original'}, Resolution: ${videoFormat.height || 'HD'})`);
       
-      const currentVidTime = proxyVideo.currentTime || savedTime;
+      const targetTime = proxyVideo.currentTime || savedTime || 0;
+      
       proxyVideo.src = videoUrl;
-      proxyVideo.currentTime = currentVidTime;
       bgAudio.src = audioUrl;
-      bgAudio.currentTime = currentVidTime;
+
+      // Fix initial sync drift by setting currentTime safely upon loadedmetadata
+      proxyVideo.onloadedmetadata = () => {
+        proxyVideo.currentTime = targetTime;
+      };
+      bgAudio.onloadedmetadata = () => {
+        bgAudio.currentTime = targetTime;
+      };
 
       proxyVideo.play().catch(e => {
         logVerbose(`Video autoplay restricted, forcing muted: ${e.message}`, 'warn');
@@ -741,7 +749,9 @@
 
       const currentTime = proxyVideo.currentTime;
       bgAudio.src = audioUrl;
-      bgAudio.currentTime = currentTime;
+      bgAudio.onloadedmetadata = () => {
+        bgAudio.currentTime = currentTime;
+      };
       if (!userPaused && !isAppBackgrounded) {
         bgAudio.play().catch(() => {});
       }
