@@ -10,6 +10,9 @@
   <meta name="apple-mobile-web-app-title" content="ZenTube" />
   <meta name="theme-color" content="#0d0d0e" />
 
+  <!-- Cache-busting stylesheet link -->
+  <link rel="stylesheet" href="./style.css?v=20261112-v3" onerror="/* Fallback inline styles active */" />
+
   <style>
     :root {
       --bg-primary: #0d0d0e;
@@ -50,7 +53,7 @@
     .logo-container { display: flex; align-items: center; gap: 8px; }
     .logo-icon { width: 24px; height: 24px; background-color: var(--accent-color); border-radius: 6px; display: flex; align-items: center; justify-content: center; }
     .logo-icon::after { content: ''; border-style: solid; border-width: 5px 0 5px 9px; border-color: transparent transparent transparent #ffffff; margin-left: 2px; }
-    .logo-text { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
+    .logo-text { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; display: flex; align-items: baseline; gap: 6px; }
 
     .header-actions { display: flex; align-items: center; gap: 10px; }
     .icon-btn-header, .auth-btn { background: var(--bg-surface-elevated); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 20px; padding: 8px 14px; font-size: 13px; font-weight: 650; cursor: pointer; display: flex; align-items: center; gap: 6px; }
@@ -216,7 +219,10 @@
   <header>
     <div class="logo-container">
       <div class="logo-icon"></div>
-      <div class="logo-text">ZenTube</div>
+      <div class="logo-text">
+        ZenTube
+        <span id="header-version-display" style="font-size: 11px; font-weight: 400; color: var(--text-secondary);">v20261112-v3</span>
+      </div>
     </div>
     <div class="header-actions">
       <button class="icon-btn-header" onclick="manualRefreshFeed()" title="Refresh Feed">🔄</button>
@@ -352,9 +358,24 @@
     <div class="nav-item" onclick="switchTab('settings-view', this)"><div class="nav-icon">⚙️</div><span>Settings</span></div>
   </nav>
 
-  <script src="https://accounts.google.com/gsi/client" async defer onload="initGoogleAuth()"></script>
+  <!-- Google Identity Services Script with Cache-Busting Version Query Parameter -->
+  <script src="https://accounts.google.com/gsi/client?v=20261112" async defer onload="initGoogleAuth()"></script>
 
   <script>
+    /* ==========================================================================
+       APP CONFIG & STORAGE PERSISTENCE (localStorage)
+       ========================================================================== */
+    const APP_BUILD_VERSION = '20261112-v3';
+    
+    // Check for cache-busting version updates on boot
+    (function checkAppVersion() {
+      const storedVersion = localStorage.getItem('zentube_app_version');
+      if (storedVersion !== APP_BUILD_VERSION) {
+        localStorage.setItem('zentube_app_version', APP_BUILD_VERSION);
+        console.log(`[ZenTube] Updated to build version ${APP_BUILD_VERSION}`);
+      }
+    })();
+
     let toastTimeout = null;
     function showToast(message) {
       const toast = document.getElementById('toast-notification');
@@ -366,6 +387,7 @@
         toast.classList.remove('show');
       }, 3000);
     }
+
     let tokenClient = null;
     let accessToken = localStorage.getItem('zentube_token') || null;
     let clientId = localStorage.getItem('zentube_client_id') || '';
@@ -388,6 +410,12 @@
     ];
 
     document.addEventListener('DOMContentLoaded', () => {
+      // Dynamically populate header version display from APP_BUILD_VERSION constant
+      const versionEl = document.getElementById('header-version-display');
+      if (versionEl) {
+        versionEl.textContent = `v${APP_BUILD_VERSION}`;
+      }
+
       document.getElementById('client-id-input').value = clientId;
       document.getElementById('proxy-url-input').value = proxyUrl;
       document.getElementById('debug-mode-toggle').checked = debugMode;
@@ -634,7 +662,8 @@
       }
 
       try {
-        const res = await fetch(`${proxyUrl}/api/v1/videos/${videoId}`);
+        const fetchUrl = `${proxyUrl}/api/v1/videos/${videoId}?_cb=${Date.now()}`;
+        const res = await fetch(fetchUrl);
         if (!res.ok) throw new Error(`HTTP ${res.status} from proxy instance`);
         const data = await res.json();
 
@@ -826,7 +855,6 @@
     async function changeQuality(indexStr) {
       if (indexStr === '' || isHandoffInProgress) return;
       
-      // INSTANT GUARD: Clear timer immediately to prevent overlapping duplicate triggers
       if (autoUpgradeTimer) {
         clearInterval(autoUpgradeTimer);
         autoUpgradeTimer = null;
@@ -846,7 +874,6 @@
 
       isHandoffInProgress = true;
 
-      // Ensure staging video source is loaded & valid (recover if previously errored)
       if (!stagingVideo.src || stagingVideo.src === '' || stagingVideo.error) {
         let videoUrl = videoFormat.url.startsWith('http') ? videoFormat.url : `${proxyUrl}${videoFormat.url}`;
         if (videoUrl.includes('googlevideo.com')) {
