@@ -277,17 +277,22 @@
     let audioSyncInterval = null;
 
     const demoVideos = [
-      { id: 'dQw4w9WgXcQ', title: 'Rick Astley - Never Gonna Give You Up', channel: 'Rick Astley', duration: 213, thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg' }
+      { id: 'dQw4w9WgXcQ', title: 'Rick Astley - Never Gonna Give You Up', channel: 'Rick Astley', duration: 213, thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg', publishedAt: new Date() }
     ];
 
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('client-id-input').value = clientId;
       document.getElementById('proxy-url-input').value = proxyUrl;
-      renderFeed(demoVideos, 'video-grid');
       setupMediaSessionHandlers();
       setupVisibilityHandler();
       if (window.google && window.google.accounts) {
         initGoogleAuth();
+      }
+      if (accessToken) {
+        updateAuthUI(true);
+        fetchSubscribedChannelsFeed();
+      } else {
+        renderFeed(demoVideos, 'video-grid');
       }
     });
 
@@ -376,6 +381,7 @@
       }
     }
 
+    // FIXED: Smooth proportional sync loop using continuous damping instead of abrupt discrete step rate changes and hard seeks
     function startAudioSyncLoop() {
       if (audioSyncInterval) clearInterval(audioSyncInterval);
       audioSyncInterval = setInterval(() => {
@@ -387,22 +393,20 @@
 
         if (activeVideo && !activeVideo.paused) {
           const drift = activeVideo.currentTime - audioEl.currentTime;
-          if (Math.abs(drift) > 0.08) {
-            if (drift > 0.3) {
+          if (Math.abs(drift) > 0.05) {
+            if (Math.abs(drift) > 0.4) {
               activeVideo.currentTime = audioEl.currentTime;
               activeVideo.playbackRate = 1.0;
-            } else if (drift > 0.04) {
-              activeVideo.playbackRate = 0.95;
-            } else if (drift < -0.04) {
-              activeVideo.playbackRate = 1.05;
             } else {
-              activeVideo.playbackRate = 1.0;
+              // Smooth proportional correction
+              const correction = 1.0 - (drift * 0.4);
+              activeVideo.playbackRate = Math.max(0.92, Math.min(1.08, correction));
             }
           } else {
             activeVideo.playbackRate = 1.0;
           }
         }
-      }, 150);
+      }, 100);
     }
 
     function setupVisibilityHandler() {
@@ -585,7 +589,6 @@
         startAudioSyncLoop();
         logVerbose(`Playback active (Stutter-Free, Video: ${getFormatHeight(videoFormat)}p)`);
 
-        // DEFERRED PREWARM: Wait 6 seconds for primary playback decoder to stabilize completely
         prewarmTimeout = setTimeout(() => {
           triggerImmediateStagingPrewarm();
           scheduleAutoUpgrade();
@@ -623,7 +626,6 @@
         stagingVideo.src = videoUrl;
         stagingVideo.preload = 'auto';
         
-        // BUFFERED READINESS GUARD: Only set currentTime once staging video reaches HAVE_METADATA or greater
         const checkAndSetStagingTime = () => {
           if (stagingVideo.readyState >= 1 && audioEl) {
             stagingVideo.currentTime = audioEl.currentTime;
@@ -680,6 +682,7 @@
       }, 1000);
     }
 
+    // FIXED: Smooth seamless swap using proportional playback rate control without abrupt hard seeks that cause stutter
     async function changeQuality(indexStr) {
       if (indexStr === '' || isHandoffInProgress) return;
       const targetIndex = parseInt(indexStr, 10);
@@ -727,23 +730,21 @@
         const currentAudioTime = audioEl ? audioEl.currentTime : initialLiveTime;
         const timeDelta = stagingVideo.currentTime - currentAudioTime;
 
-        if (Math.abs(timeDelta) > 0.016) {
-          if (timeDelta > 0.05) {
+        if (Math.abs(timeDelta) > 0.01) {
+          if (Math.abs(timeDelta) > 0.3) {
             stagingVideo.currentTime = currentAudioTime;
             stagingVideo.playbackRate = 1.0;
-          } else if (timeDelta > 0.016) {
-            stagingVideo.playbackRate = 0.96;
-          } else if (timeDelta < -0.016) {
-            stagingVideo.playbackRate = 1.04;
           } else {
-            stagingVideo.playbackRate = 1.0;
+            // Smooth rate correction without harsh seeking
+            const rateCorrection = 1.0 - (timeDelta * 0.5);
+            stagingVideo.playbackRate = Math.max(0.92, Math.min(1.08, rateCorrection));
           }
         } else {
           stagingVideo.playbackRate = 1.0;
         }
 
         const isFrameReady = stagingVideo.readyState >= 3 && 
-                             Math.abs(stagingVideo.currentTime - currentAudioTime) <= 0.02;
+                             Math.abs(stagingVideo.currentTime - currentAudioTime) <= 0.025;
 
         if (isFrameReady || attempts > 60) {
           clearInterval(flashFreeSyncCheck);
@@ -841,11 +842,31 @@
       }
       try {
         const syncStatus = document.getElementById('sync-status');
-        if (syncStatus) syncStatus.textContent = 'Updating Feed...';
+        if (syncStatus) {
+          syncStatus.textContent = 'Updating Feed...';
+          syncStatus.style.color = 'var(--text-secondary)';
+        }
         
         const subRes = await fetch('https://www.googleapis.com/youtube/v3/subscriptions?mine=true&part=snippet,contentDetails&maxResults=15', {
           headers: { Authorization: `Bearer ${accessToken}` }
         });
+
+        if (subRes.status === 401) {
+          accessToken = null;
+          localStorage.removeItem('zentube_token');
+          updateAuthUI(false);
+          renderFeed(demoVideos, 'video-grid');
+          if (syncStatus) {
+            syncStatus.textContent = 'Session Expired - Sign In Again';
+            syncStatus.style.color = '#ff453a';
+          }
+          return;
+        }
+
+        if (!subRes.ok) {
+          throw new Error(`Subscriptions API returned HTTP ${subRes.status}`);
+        }
+
         const subData = await subRes.json();
         
         if (!subData.items || subData.items.length === 0) {
@@ -865,25 +886,31 @@
             const channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?id=${channelId}&part=contentDetails`, {
               headers: { Authorization: `Bearer ${accessToken}` }
             });
+            if (!channelRes.ok) continue;
             const channelData = await channelRes.json();
             
-            if (channelData.items && channelData.items.length > 0) {
-              const uploadsPlaylistId = channelData.items[0].contentDetails.relatedPlaylists.uploads;
+            const uploadsPlaylistId = channelData.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+            if (uploadsPlaylistId) {
               const playlistRes = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?playlistId=${uploadsPlaylistId}&part=snippet&maxResults=3`, {
                 headers: { Authorization: `Bearer ${accessToken}` }
               });
+              if (!playlistRes.ok) continue;
               const playlistData = await playlistRes.json();
               
               if (playlistData.items) {
                 playlistData.items.forEach(item => {
-                  const thumbnails = item.snippet.thumbnails;
-                  const thumbUrl = thumbnails.medium ? thumbnails.medium.url : (thumbnails.default ? thumbnails.default.url : '');
+                  const snippet = item.snippet;
+                  const videoId = snippet?.resourceId?.videoId;
+                  if (!videoId || snippet.title === 'Deleted video' || snippet.title === 'Private video') return;
+
+                  const thumbnails = snippet.thumbnails || {};
+                  const thumbUrl = thumbnails.medium?.url || thumbnails.default?.url || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
                   allVideos.push({
-                    id: item.snippet.resourceId.videoId,
-                    title: item.snippet.title,
-                    channel: item.snippet.channelTitle,
+                    id: videoId,
+                    title: snippet.title,
+                    channel: snippet.channelTitle,
                     thumbnail: thumbUrl,
-                    publishedAt: new Date(item.snippet.publishedAt)
+                    publishedAt: new Date(snippet.publishedAt || 0)
                   });
                 });
               }
@@ -907,6 +934,12 @@
           syncStatus.style.color = 'var(--success-color)';
         }
       } catch (err) { 
+        console.error('Feed fetch error:', err);
+        const syncStatus = document.getElementById('sync-status');
+        if (syncStatus) {
+          syncStatus.textContent = 'Feed Error (Demo Mode)';
+          syncStatus.style.color = '#ff453a';
+        }
         renderFeed(demoVideos, 'video-grid'); 
       }
     }
@@ -951,12 +984,14 @@
           });
           const playlistData = await playlistRes.json();
           if (playlistData.items) {
-            const videos = playlistData.items.map(item => ({
-              id: item.snippet.resourceId.videoId,
-              title: item.snippet.title,
-              channel: item.snippet.channelTitle,
-              thumbnail: item.snippet.thumbnails.medium ? item.snippet.thumbnails.medium.url : item.snippet.thumbnails.default.url
-            }));
+            const videos = playlistData.items
+              .filter(item => item.snippet?.resourceId?.videoId && item.snippet.title !== 'Deleted video' && item.snippet.title !== 'Private video')
+              .map(item => ({
+                id: item.snippet.resourceId.videoId,
+                title: item.snippet.title,
+                channel: item.snippet.channelTitle,
+                thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url || `https://i.ytimg.com/vi/${item.snippet.resourceId.videoId}/mqdefault.jpg`
+              }));
             renderFeed(videos, 'channel-videos-grid');
           }
         }
@@ -980,7 +1015,7 @@
             id: item.id.videoId,
             title: item.snippet.title,
             channel: item.snippet.channelTitle,
-            thumbnail: item.snippet.thumbnails.medium ? item.snippet.thumbnails.medium.url : item.snippet.thumbnails.default.url
+            thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url || `https://i.ytimg.com/vi/${item.id.videoId}/mqdefault.jpg`
           }));
           renderFeed(results, 'search-grid');
         }
@@ -1060,7 +1095,7 @@
         card.className = 'video-card';
         card.onclick = () => openPlayer(v.id, v.title, v.channel, v.thumbnail);
         card.innerHTML = `
-          <div class="thumbnail-wrapper"><img class="thumbnail-img" src="${v.thumbnail}" /></div>
+          <div class="thumbnail-wrapper"><img class="thumbnail-img" src="${v.thumbnail}" loading="lazy" /></div>
           <div class="video-info"><div class="video-title">${v.title}</div><div class="video-meta">${v.channel}</div></div>
         `;
         grid.appendChild(card);
