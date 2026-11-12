@@ -133,6 +133,31 @@
     .input-field { background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); padding: 12px; border-radius: 8px; font-size: 14px; width: 100%; }
     .save-btn { background: var(--accent-color); color: #fff; border: none; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer; }
     .channel-item { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--bg-surface); border-radius: 12px; border: 1px solid var(--border-color); cursor: pointer; }
+
+    /* Toast Notification Styles */
+    .toast-container {
+      position: fixed;
+      bottom: calc(var(--nav-height) + var(--safe-bottom) + 20px);
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--bg-surface-elevated);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      z-index: 2000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    .toast-container.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+      pointer-events: auto;
+    }
   </style>
 </head>
 <body>
@@ -187,6 +212,8 @@
       </div>
     </div>
   </main>
+
+  <div class="toast-container" id="toast-notification"></div>
 
   <div class="channel-detail-view" id="channel-detail-view">
     <div class="channel-detail-header">
@@ -260,6 +287,17 @@
   <script src="https://accounts.google.com/gsi/client" async defer onload="initGoogleAuth()"></script>
 
   <script>
+    let toastTimeout = null;
+    function showToast(message) {
+      const toast = document.getElementById('toast-notification');
+      if (!toast) return;
+      toast.textContent = message;
+      toast.classList.add('show');
+      if (toastTimeout) clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        toast.classList.remove('show');
+      }, 3000);
+    }
     let tokenClient = null;
     let accessToken = localStorage.getItem('zentube_token') || null;
     let clientId = localStorage.getItem('zentube_client_id') || '';
@@ -805,7 +843,7 @@
       } else {
         clientId = document.getElementById('client-id-input').value.trim() || localStorage.getItem('zentube_client_id') || '';
         if (!clientId) {
-          alert('Please save your OAuth Client ID in Settings first.');
+          showToast('Please save your OAuth Client ID in Settings first.');
           switchTab('settings-view', document.querySelector('.nav-item:nth-child(4)'));
           return;
         }
@@ -1105,19 +1143,19 @@
     function saveProxyUrl() {
       proxyUrl = document.getElementById('proxy-url-input').value.trim().replace(/\/$/, '');
       localStorage.setItem('zentube_proxy_url', proxyUrl);
-      alert('Proxy Saved!');
+      showToast('Proxy Saved!');
     }
 
     function saveClientId() {
       const inputVal = document.getElementById('client-id-input').value.trim();
       if (!inputVal) {
-        alert('Please enter a valid Client ID.');
+        showToast('Please enter a valid Client ID.');
         return;
       }
       clientId = inputVal;
       localStorage.setItem('zentube_client_id', clientId);
       initGoogleAuth();
-      alert('Client ID Saved & Auth Initialized!');
+      showToast('Client ID Saved & Auth Initialized!');
       logVerbose('OAuth Client ID successfully saved and initialized.');
     }
   </script>
