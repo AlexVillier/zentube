@@ -8,10 +8,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="ZenTube" />
-  <meta name="theme-color" content="#0d0d0e" />
+  <meta name="theme-color" content="#17171a" />
 
   <!-- Cache-busting stylesheet link -->
-  <link rel="stylesheet" href="./style.css?v=20261112-v5" onerror="/* Fallback inline styles active */" />
+  <link rel="stylesheet" href="./style.css?v=20261112-v25" onerror="/* Fallback inline styles active */" />
 
   <style>
     :root {
@@ -23,31 +23,37 @@
       --text-secondary: #8e8e93;
       --accent-color: #ff3b30;
       --success-color: #30d158;
-      --nav-height: 64px;
-      --safe-top: env(safe-area-inset-top, 20px);
-      --safe-bottom: env(safe-area-inset-bottom, 20px);
+      --nav-height: 86px;
+      --safe-top: env(safe-area-inset-top, 0px);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; user-select: none; }
 
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
-      background-color: var(--bg-primary);
+    /* Full-screen Flexbox layout reaching physical bottom edge (100lvh) */
+    html, body {
+      width: 100%;
+      height: 100vh;
+      height: 100lvh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      background-color: var(--bg-surface);
       color: var(--text-primary);
-      overflow-x: hidden;
-      padding-top: var(--safe-top);
-      padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 20px);
-      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
     }
 
     header {
-      position: sticky; top: 0; z-index: 90;
-      background: rgba(13, 13, 14, 0.85);
+      flex-shrink: 0;
+      width: 100%;
+      z-index: 90;
+      background: rgba(23, 23, 26, 0.95);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
       border-bottom: 1px solid var(--border-color);
-      padding: 12px 16px;
-      display: flex; justify-content: space-between; align-items: center;
+      padding: calc(var(--safe-top) + 8px) 16px 10px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
 
     .logo-container { display: flex; align-items: center; gap: 8px; }
@@ -60,7 +66,18 @@
     .icon-btn-header { width: 34px; height: 34px; border-radius: 50%; padding: 0; justify-content: center; align-items: center; }
     .icon-btn-header svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
-    main { padding: 16px; max-width: 800px; margin: 0 auto; }
+    /* Flex-1 scroll area bounded strictly between header and nav bar */
+    main {
+      flex: 1;
+      width: 100%;
+      max-width: 800px;
+      margin: 0 auto;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 16px;
+      background-color: var(--bg-primary);
+    }
+
     .section-title { font-size: 14px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
 
     .video-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
@@ -72,6 +89,9 @@
     .video-info { padding: 12px; display: flex; flex-direction: column; gap: 6px; }
     .video-title { font-size: 15px; font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .video-meta { font-size: 13px; color: var(--text-secondary); }
+
+    .feed-loader { text-align: center; padding: 20px; color: var(--text-secondary); font-size: 13px; font-weight: 500; display: none; }
+    .feed-loader.active { display: block; }
 
     .player-modal {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -130,7 +150,7 @@
     .log-entry.error { color: #ff453a; }
     .log-entry.warn { color: #ffd60a; }
 
-    .player-modal.docked { top: auto; bottom: calc(var(--nav-height) + var(--safe-bottom) + 10px); right: 12px; width: calc(100% - 24px); max-width: 360px; height: auto; max-height: 320px; border-radius: 16px; border: 1px solid var(--border-color); box-shadow: 0 10px 30px rgba(0,0,0,0.8); background: var(--bg-surface); overflow: hidden; }
+    .player-modal.docked { top: auto; bottom: calc(var(--nav-height) + 10px); right: 12px; width: calc(100% - 24px); max-width: 360px; height: auto; max-height: 320px; border-radius: 16px; border: 1px solid var(--border-color); box-shadow: 0 10px 30px rgba(0,0,0,0.8); background: var(--bg-surface); overflow: hidden; }
     .player-modal.docked .player-header { padding: 8px 12px; }
     .player-modal.docked .player-details { display: none; }
 
@@ -138,11 +158,25 @@
     .channel-detail-view.active { display: flex; }
     .channel-detail-header { padding: 16px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border-color); }
 
-    nav.bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; height: calc(var(--nav-height) + var(--safe-bottom)); background: rgba(23, 23, 26, 0.95); backdrop-filter: blur(20px); border-top: 1px solid var(--border-color); display: flex; justify-content: space-around; padding-bottom: var(--safe-bottom); z-index: 100; }
-    .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 11px; gap: 4px; cursor: pointer; width: 25%; }
+    /* Bottom Nav with +20px additional bottom padding (40px total bottom padding) */
+    nav.bottom-nav {
+      flex-shrink: 0;
+      width: 100%;
+      height: var(--nav-height);
+      background: rgba(23, 23, 26, 0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      padding: 10px 0 40px 0;
+      z-index: 100;
+    }
+    .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 11px; gap: 4px; cursor: pointer; width: 25%; height: 100%; }
     .nav-item.active { color: var(--text-primary); }
-    .nav-icon { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; }
-    .nav-icon svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .nav-icon { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
+    .nav-icon svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
     .view { display: none; }
     .view.active { display: block; }
@@ -196,7 +230,7 @@
     /* Toast Notification Styles */
     .toast-container {
       position: fixed;
-      bottom: calc(var(--nav-height) + var(--safe-bottom) + 20px);
+      bottom: calc(var(--nav-height) + 16px);
       left: 50%;
       transform: translateX(-50%) translateY(20px);
       background: var(--bg-surface-elevated);
@@ -226,11 +260,10 @@
       <div class="logo-icon"></div>
       <div class="logo-text">
         ZenTube
-        <span id="header-version-display" style="font-size: 11px; font-weight: 400; color: var(--text-secondary);">v20261112-v5</span>
+        <span id="header-version-display" style="font-size: 11px; font-weight: 400; color: var(--text-secondary);">v20261112-v25</span>
       </div>
     </div>
     <div class="header-actions">
-      <!-- Cleaned Minimal Reload Vector Icon -->
       <button class="icon-btn-header" onclick="manualRefreshFeed()" title="Refresh Feed">
         <svg viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
       </button>
@@ -238,13 +271,14 @@
     </div>
   </header>
 
-  <main>
+  <main id="main-scroll-container">
     <div id="feed-view" class="view active">
       <div class="section-title">
         <span>Subscriptions Feed</span>
         <span id="sync-status" style="font-size: 11px; color: var(--text-secondary);">Demo Mode</span>
       </div>
       <div class="video-grid" id="video-grid"></div>
+      <div class="feed-loader" id="feed-loader">Loading more videos...</div>
     </div>
 
     <div id="channels-view" class="view">
@@ -399,7 +433,7 @@
   <script src="https://accounts.google.com/gsi/client?v=20261112" async defer onload="initGoogleAuth()"></script>
 
   <script>
-    const APP_BUILD_VERSION = '1.10.4';
+    const APP_BUILD_VERSION = '1.10.5';
     
     (function checkAppVersion() {
       const storedVersion = localStorage.getItem('zentube_app_version');
@@ -435,7 +469,12 @@
     let autoUpgradeTimer = null;
     let prewarmTimeout = null;
     let isStagingPrewarmed = false;
-    let activeFeedVideos = [];
+    
+    let masterFeedPool = [];
+    let displayedVideoCount = 0;
+    const PAGE_SIZE = 25;
+    let isFetchingMore = false;
+
     let audioSyncInterval = null;
 
     const demoVideos = [
@@ -454,6 +493,8 @@
       applyDebugModeUI();
       setupMediaSessionHandlers();
       setupVisibilityHandler();
+      setupInfiniteScroll();
+
       if (window.google && window.google.accounts) {
         initGoogleAuth();
       }
@@ -461,9 +502,44 @@
         updateAuthUI(true);
         fetchSubscribedChannelsFeed();
       } else {
-        renderFeed(demoVideos, 'video-grid');
+        masterFeedPool = demoVideos;
+        renderFeedInitial(masterFeedPool, 'video-grid');
       }
     });
+
+    function setupInfiniteScroll() {
+      const scrollContainer = document.getElementById('main-scroll-container');
+      if (!scrollContainer) return;
+
+      scrollContainer.addEventListener('scroll', () => {
+        const feedView = document.getElementById('feed-view');
+        if (!feedView || !feedView.classList.contains('active')) return;
+
+        const scrollPosition = scrollContainer.scrollTop + scrollContainer.clientHeight;
+        const threshold = scrollContainer.scrollHeight - 300;
+
+        if (scrollPosition >= threshold && !isFetchingMore) {
+          loadMoreFeedItems();
+        }
+      });
+    }
+
+    function loadMoreFeedItems() {
+      if (displayedVideoCount >= masterFeedPool.length) return;
+      isFetchingMore = true;
+      const loader = document.getElementById('feed-loader');
+      if (loader) loader.classList.add('active');
+
+      setTimeout(() => {
+        const nextBatchEnd = Math.min(displayedVideoCount + PAGE_SIZE, masterFeedPool.length);
+        const nextBatch = masterFeedPool.slice(displayedVideoCount, nextBatchEnd);
+        appendFeedBatch(nextBatch, 'video-grid');
+        displayedVideoCount = nextBatchEnd;
+
+        isFetchingMore = false;
+        if (loader) loader.classList.remove('active');
+      }, 300);
+    }
 
     function saveDebugMode(isChecked) {
       debugMode = isChecked;
@@ -1008,7 +1084,8 @@
         accessToken = null;
         localStorage.removeItem('zentube_token');
         updateAuthUI(false);
-        renderFeed(demoVideos, 'video-grid');
+        masterFeedPool = demoVideos;
+        renderFeedInitial(masterFeedPool, 'video-grid');
         logVerbose('Signed out successfully.');
       } else {
         clientId = document.getElementById('client-id-input').value.trim() || localStorage.getItem('zentube_client_id') || '';
@@ -1045,7 +1122,8 @@
 
     async function fetchSubscribedChannelsFeed() {
       if (!accessToken) {
-        renderFeed(demoVideos, 'video-grid');
+        masterFeedPool = demoVideos;
+        renderFeedInitial(masterFeedPool, 'video-grid');
         return;
       }
       try {
@@ -1055,38 +1133,50 @@
           syncStatus.style.color = 'var(--text-secondary)';
         }
         
-        const subRes = await fetch('https://www.googleapis.com/youtube/v3/subscriptions?mine=true&part=snippet,contentDetails&maxResults=15', {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        });
+        let allSubscriptions = [];
+        let nextPageToken = '';
+        
+        do {
+          let url = `https://www.googleapis.com/youtube/v3/subscriptions?mine=true&part=snippet,contentDetails&maxResults=50`;
+          if (nextPageToken) url += `&pageToken=${nextPageToken}`;
+          
+          const subRes = await fetch(url, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+          });
 
-        if (subRes.status === 401) {
-          accessToken = null;
-          localStorage.removeItem('zentube_token');
-          updateAuthUI(false);
-          renderFeed(demoVideos, 'video-grid');
-          if (syncStatus) {
-            syncStatus.textContent = 'Session Expired - Sign In Again';
-            syncStatus.style.color = '#ff453a';
+          if (subRes.status === 401) {
+            accessToken = null;
+            localStorage.removeItem('zentube_token');
+            updateAuthUI(false);
+            masterFeedPool = demoVideos;
+            renderFeedInitial(masterFeedPool, 'video-grid');
+            if (syncStatus) {
+              syncStatus.textContent = 'Session Expired - Sign In Again';
+              syncStatus.style.color = '#ff453a';
+            }
+            return;
           }
+
+          if (!subRes.ok) throw new Error(`Subscriptions API returned HTTP ${subRes.status}`);
+          
+          const subData = await subRes.json();
+          if (subData.items) {
+            allSubscriptions = allSubscriptions.concat(subData.items);
+          }
+          nextPageToken = subData.nextPageToken || '';
+        } while (nextPageToken);
+
+        if (allSubscriptions.length === 0) {
+          masterFeedPool = demoVideos;
+          renderFeedInitial(masterFeedPool, 'video-grid');
           return;
         }
-
-        if (!subRes.ok) {
-          throw new Error(`Subscriptions API returned HTTP ${subRes.status}`);
-        }
-
-        const subData = await subRes.json();
         
-        if (!subData.items || subData.items.length === 0) {
-          renderFeed(demoVideos, 'video-grid');
-          return;
-        }
-        
-        renderChannelsList(subData.items);
+        renderChannelsList(allSubscriptions);
         
         let allVideos = [];
         
-        for (const sub of subData.items) {
+        for (const sub of allSubscriptions) {
           try {
             const channelId = sub.snippet?.resourceId?.channelId || sub.snippet?.channelId;
             if (!channelId) continue;
@@ -1099,7 +1189,7 @@
             
             const uploadsPlaylistId = channelData.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
             if (uploadsPlaylistId) {
-              const playlistRes = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?playlistId=${uploadsPlaylistId}&part=snippet&maxResults=3`, {
+              const playlistRes = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?playlistId=${uploadsPlaylistId}&part=snippet&maxResults=15`, {
                 headers: { Authorization: `Bearer ${accessToken}` }
               });
               if (!playlistRes.ok) continue;
@@ -1113,12 +1203,16 @@
 
                   const thumbnails = snippet.thumbnails || {};
                   const thumbUrl = thumbnails.medium?.url || thumbnails.default?.url || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
+                  
+                  const publishedDate = new Date(snippet.publishedAt || 0);
+                  
                   allVideos.push({
                     id: videoId,
                     title: snippet.title,
                     channel: snippet.channelTitle,
                     thumbnail: thumbUrl,
-                    publishedAt: new Date(snippet.publishedAt || 0)
+                    publishedAt: publishedDate,
+                    timestamp: publishedDate.getTime()
                   });
                 });
               }
@@ -1128,13 +1222,14 @@
           }
         }
         
-        allVideos.sort((a, b) => b.publishedAt - a.publishedAt);
+        allVideos.sort((a, b) => b.timestamp - a.timestamp);
         
         if (allVideos.length > 0) {
-          activeFeedVideos = allVideos;
-          renderFeed(activeFeedVideos, 'video-grid');
+          masterFeedPool = allVideos;
+          renderFeedInitial(masterFeedPool, 'video-grid');
         } else { 
-          renderFeed(demoVideos, 'video-grid'); 
+          masterFeedPool = demoVideos;
+          renderFeedInitial(masterFeedPool, 'video-grid'); 
         }
         
         if (syncStatus) {
@@ -1148,8 +1243,33 @@
           syncStatus.textContent = 'Feed Error (Demo Mode)';
           syncStatus.style.color = '#ff453a';
         }
-        renderFeed(demoVideos, 'video-grid'); 
+        masterFeedPool = demoVideos;
+        renderFeedInitial(masterFeedPool, 'video-grid'); 
       }
+    }
+
+    function renderFeedInitial(videos, containerId) {
+      const grid = document.getElementById(containerId);
+      if (!grid) return;
+      grid.innerHTML = '';
+      displayedVideoCount = Math.min(PAGE_SIZE, videos.length);
+      const initialBatch = videos.slice(0, displayedVideoCount);
+      appendFeedBatch(initialBatch, containerId);
+    }
+
+    function appendFeedBatch(videos, containerId) {
+      const grid = document.getElementById(containerId);
+      if (!grid) return;
+      videos.forEach(v => {
+        const card = document.createElement('div');
+        card.className = 'video-card';
+        card.onclick = () => openPlayer(v.id, v.title, v.channel, v.thumbnail);
+        card.innerHTML = `
+          <div class="thumbnail-wrapper"><img class="thumbnail-img" src="${v.thumbnail}" loading="lazy" /></div>
+          <div class="video-info"><div class="video-title">${v.title}</div><div class="video-meta">${v.channel}</div></div>
+        `;
+        grid.appendChild(card);
+      });
     }
 
     function renderChannelsList(channels) {
@@ -1200,7 +1320,7 @@
                 channel: item.snippet.channelTitle,
                 thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url || `https://i.ytimg.com/vi/${item.snippet.resourceId.videoId}/mqdefault.jpg`
               }));
-            renderFeed(videos, 'channel-videos-grid');
+            renderFeedInitial(videos, 'channel-videos-grid');
           }
         }
       } catch (err) { grid.innerHTML = '<p style="color: var(--text-secondary);">Unable to load channel uploads.</p>'; }
@@ -1225,7 +1345,7 @@
             channel: item.snippet.channelTitle,
             thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url || `https://i.ytimg.com/vi/${item.id.videoId}/mqdefault.jpg`
           }));
-          renderFeed(results, 'search-grid');
+          renderFeedInitial(results, 'search-grid');
         }
       } catch (err) { grid.innerHTML = '<p style="color: var(--text-secondary);">Search failed.</p>'; }
     }
@@ -1293,23 +1413,10 @@
 
     function manualRefreshFeed() {
       if (accessToken) { fetchSubscribedChannelsFeed(); } 
-      else { renderFeed(demoVideos, 'video-grid'); }
-    }
-
-    function renderFeed(videos, containerId) {
-      const grid = document.getElementById(containerId);
-      if (!grid) return;
-      grid.innerHTML = '';
-      videos.forEach(v => {
-        const card = document.createElement('div');
-        card.className = 'video-card';
-        card.onclick = () => openPlayer(v.id, v.title, v.channel, v.thumbnail);
-        card.innerHTML = `
-          <div class="thumbnail-wrapper"><img class="thumbnail-img" src="${v.thumbnail}" loading="lazy" /></div>
-          <div class="video-info"><div class="video-title">${v.title}</div><div class="video-meta">${v.channel}</div></div>
-        `;
-        grid.appendChild(card);
-      });
+      else {
+        masterFeedPool = demoVideos;
+        renderFeedInitial(masterFeedPool, 'video-grid');
+      }
     }
 
     function saveProxyUrl() {
