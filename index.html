@@ -69,7 +69,13 @@
     .video-title { font-size: 15px; font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .video-meta { font-size: 13px; color: var(--text-secondary); }
 
-    .player-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(13, 13, 14, 0.98); z-index: 1000; display: none; flex-direction: column; overflow-y: auto; }
+    .player-modal {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(13, 13, 14, 0.98); z-index: 1000;
+      display: none; flex-direction: column; overflow-y: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
     .player-modal.active { display: flex; }
     .player-header { padding: calc(var(--safe-top) + 10px) 16px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); background: var(--bg-primary); }
     .player-actions { display: flex; gap: 8px; align-items: center; }
@@ -110,7 +116,10 @@
     .quality-selector { background: var(--bg-surface-elevated); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 6px; padding: 4px 8px; font-size: 12px; font-weight: 600; cursor: pointer; }
 
     .player-details { padding: 16px; flex: 1; display: flex; flex-direction: column; gap: 12px; }
-    .debug-terminal { background: #000; border: 1px solid var(--border-color); border-radius: 10px; padding: 10px; font-family: monospace; font-size: 11px; color: var(--success-color); height: 160px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; white-space: pre-wrap; word-break: break-all; }
+    .debug-terminal-header { display: flex; justify-content: space-between; align-items: center; }
+    .icon-btn-tiny { background: var(--bg-surface-elevated); border: 1px solid var(--border-color); color: var(--text-primary); width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; }
+    .icon-btn-tiny:hover { background: var(--border-color); }
+    .debug-terminal { background: #000; border: 1px solid var(--border-color); border-radius: 10px; padding: 10px; font-family: monospace; font-size: 11px; color: var(--success-color); height: 160px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; white-space: pre-wrap; word-break: break-all; overscroll-behavior: contain; }
     .log-entry.error { color: #ff453a; }
     .log-entry.warn { color: #ffd60a; }
 
@@ -133,6 +142,48 @@
     .input-field { background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); padding: 12px; border-radius: 8px; font-size: 14px; width: 100%; }
     .save-btn { background: var(--accent-color); color: #fff; border: none; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer; }
     .channel-item { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--bg-surface); border-radius: 12px; border: 1px solid var(--border-color); cursor: pointer; }
+
+    /* Custom Toggle Switch Component Styles */
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 48px;
+      height: 26px;
+      flex-shrink: 0;
+    }
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: var(--bg-surface-elevated);
+      border: 1px solid var(--border-color);
+      transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      border-radius: 26px;
+    }
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 2px;
+      bottom: 2px;
+      background-color: var(--text-secondary);
+      transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      border-radius: 50%;
+    }
+    .toggle-switch input:checked + .toggle-slider {
+      background-color: var(--success-color);
+      border-color: var(--success-color);
+    }
+    .toggle-switch input:checked + .toggle-slider:before {
+      transform: translateX(22px);
+      background-color: #ffffff;
+    }
 
     /* Toast Notification Styles */
     .toast-container {
@@ -210,6 +261,18 @@
         <input type="text" id="client-id-input" class="input-field" placeholder="Paste your OAuth Client ID here" />
         <button class="save-btn" onclick="saveClientId()">Save Client ID</button>
       </div>
+      <div class="settings-card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 14px; font-weight: 600; color: var(--text-primary);">Show Debug Logs in Player</div>
+            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">Display live diagnostic terminal in player modal</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="debug-mode-toggle" onchange="saveDebugMode(this.checked)" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
     </div>
   </main>
 
@@ -270,9 +333,14 @@
     <div class="player-details">
       <h2 id="modal-video-title" style="font-size: 18px; margin-bottom: 4px;"></h2>
       <p id="modal-channel-title" style="color: var(--text-secondary); font-size: 13px; margin-bottom: 8px;"></p>
-      <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Stutter-Free Flash-Free ABR Terminal</div>
-      <div class="debug-terminal" id="debug-terminal">
-        <div class="log-entry">[Init] Stutter-free ABR player ready.</div>
+      <div id="debug-terminal-container" style="display: flex; flex-direction: column; gap: 8px;">
+        <div class="debug-terminal-header">
+          <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Stutter-Free Flash-Free ABR Terminal</div>
+          <button class="icon-btn-tiny" onclick="copyDebugLogs()" title="Copy Debug Logs">📋</button>
+        </div>
+        <div class="debug-terminal" id="debug-terminal">
+          <div class="log-entry">[Init] Stutter-free ABR player ready.</div>
+        </div>
       </div>
     </div>
   </div>
@@ -302,6 +370,7 @@
     let accessToken = localStorage.getItem('zentube_token') || null;
     let clientId = localStorage.getItem('zentube_client_id') || '';
     let proxyUrl = localStorage.getItem('zentube_proxy_url') || '';
+    let debugMode = localStorage.getItem('zentube_debug_mode') === 'true';
     let currentVideoId = null;
     let availableVideoFormats = [];
     let currentQualityIndex = 0;
@@ -321,6 +390,8 @@
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('client-id-input').value = clientId;
       document.getElementById('proxy-url-input').value = proxyUrl;
+      document.getElementById('debug-mode-toggle').checked = debugMode;
+      applyDebugModeUI();
       setupMediaSessionHandlers();
       setupVisibilityHandler();
       if (window.google && window.google.accounts) {
@@ -334,9 +405,34 @@
       }
     });
 
+    function saveDebugMode(isChecked) {
+      debugMode = isChecked;
+      localStorage.setItem('zentube_debug_mode', debugMode);
+      applyDebugModeUI();
+      showToast(debugMode ? 'Debug Mode Enabled' : 'Debug Mode Disabled');
+    }
+
+    function applyDebugModeUI() {
+      const container = document.getElementById('debug-terminal-container');
+      if (container) {
+        container.style.display = debugMode ? 'flex' : 'none';
+      }
+    }
+
+    function copyDebugLogs() {
+      const terminal = document.getElementById('debug-terminal');
+      if (!terminal) return;
+      const logText = terminal.innerText;
+      navigator.clipboard.writeText(logText).then(() => {
+        showToast('Debug logs copied to clipboard!');
+      }).catch(err => {
+        showToast('Failed to copy logs.');
+      });
+    }
+
     function logVerbose(msg, type = 'info') {
       const terminal = document.getElementById('debug-terminal');
-      if (terminal) {
+      if (terminal && debugMode) {
         const timestamp = new Date().toLocaleTimeString();
         const entry = document.createElement('div');
         entry.className = `log-entry ${type}`;
@@ -419,7 +515,6 @@
       }
     }
 
-    // FIXED: Smooth proportional sync loop using continuous damping instead of abrupt discrete step rate changes and hard seeks
     function startAudioSyncLoop() {
       if (audioSyncInterval) clearInterval(audioSyncInterval);
       audioSyncInterval = setInterval(() => {
@@ -436,7 +531,6 @@
               activeVideo.currentTime = audioEl.currentTime;
               activeVideo.playbackRate = 1.0;
             } else {
-              // Smooth proportional correction
               const correction = 1.0 - (drift * 0.4);
               activeVideo.playbackRate = Math.max(0.92, Math.min(1.08, correction));
             }
@@ -500,13 +594,15 @@
       isHandoffInProgress = false;
       isStagingPrewarmed = false;
 
-      if (autoUpgradeTimer) { clearTimeout(autoUpgradeTimer); autoUpgradeTimer = null; }
+      if (autoUpgradeTimer) { clearInterval(autoUpgradeTimer); autoUpgradeTimer = null; }
       if (prewarmTimeout) { clearTimeout(prewarmTimeout); prewarmTimeout = null; }
       if (audioSyncInterval) { clearInterval(audioSyncInterval); audioSyncInterval = null; }
       
       const modal = document.getElementById('player-modal');
       modal.classList.remove('docked');
       modal.classList.add('active');
+      document.body.style.overflow = 'hidden';
+      
       document.getElementById('player-title').textContent = title;
       document.getElementById('modal-video-title').textContent = title;
       document.getElementById('modal-channel-title').textContent = channel;
@@ -658,8 +754,15 @@
         }
         videoUrl += (videoUrl.includes('?') ? '&' : '?') + 'local=true';
 
-        logVerbose(`[Prewarm] Actively pinning 720p staging stream to network queue...`);
+        logVerbose(`[Prewarm] Actively pinning ${getFormatHeight(targetFormat)}p staging stream to network queue...`);
         isStagingPrewarmed = true;
+
+        stagingVideo.onerror = (e) => {
+          logVerbose(`Staging video error for ${getFormatHeight(targetFormat)}p: ${stagingVideo.error?.message || 'decoder error'}`, 'error');
+          isStagingPrewarmed = false;
+          stagingVideo.src = '';
+          stagingVideo.load();
+        };
 
         stagingVideo.src = videoUrl;
         stagingVideo.preload = 'auto';
@@ -667,7 +770,7 @@
         const checkAndSetStagingTime = () => {
           if (stagingVideo.readyState >= 1 && audioEl) {
             stagingVideo.currentTime = audioEl.currentTime;
-          } else {
+          } else if (isStagingPrewarmed) {
             setTimeout(checkAndSetStagingTime, 100);
           }
         };
@@ -682,7 +785,7 @@
       
       autoUpgradeTimer = setInterval(() => {
         const audioEl = document.getElementById('master-audio-element');
-        if (!audioEl || audioEl.paused) return;
+        if (!audioEl || audioEl.paused || isHandoffInProgress) return;
         const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
         if (!activeVideo) return;
 
@@ -720,9 +823,15 @@
       }, 1000);
     }
 
-    // FIXED: Smooth seamless swap using proportional playback rate control without abrupt hard seeks that cause stutter
     async function changeQuality(indexStr) {
       if (indexStr === '' || isHandoffInProgress) return;
+      
+      // INSTANT GUARD: Clear timer immediately to prevent overlapping duplicate triggers
+      if (autoUpgradeTimer) {
+        clearInterval(autoUpgradeTimer);
+        autoUpgradeTimer = null;
+      }
+
       const targetIndex = parseInt(indexStr, 10);
       if (targetIndex === currentQualityIndex) return;
 
@@ -737,7 +846,8 @@
 
       isHandoffInProgress = true;
 
-      if (!stagingVideo.src || stagingVideo.src === '') {
+      // Ensure staging video source is loaded & valid (recover if previously errored)
+      if (!stagingVideo.src || stagingVideo.src === '' || stagingVideo.error) {
         let videoUrl = videoFormat.url.startsWith('http') ? videoFormat.url : `${proxyUrl}${videoFormat.url}`;
         if (videoUrl.includes('googlevideo.com')) {
           const u = new URL(videoUrl);
@@ -750,8 +860,9 @@
       }
 
       stagingVideo.onerror = (e) => {
-        logVerbose(`Staging video error for ${targetHeight}p: ${stagingVideo.error?.message || 'decoder error'}`, 'error');
+        logVerbose(`Staging video error during handoff for ${targetHeight}p: ${stagingVideo.error?.message || 'decoder error'}`, 'error');
         isHandoffInProgress = false;
+        isStagingPrewarmed = false;
       };
 
       const initialLiveTime = audioEl ? audioEl.currentTime : 0;
@@ -773,7 +884,6 @@
             stagingVideo.currentTime = currentAudioTime;
             stagingVideo.playbackRate = 1.0;
           } else {
-            // Smooth rate correction without harsh seeking
             const rateCorrection = 1.0 - (timeDelta * 0.5);
             stagingVideo.playbackRate = Math.max(0.92, Math.min(1.08, rateCorrection));
           }
@@ -1091,7 +1201,7 @@
     }
 
     function closePlayer() {
-      if (autoUpgradeTimer) { clearTimeout(autoUpgradeTimer); autoUpgradeTimer = null; }
+      if (autoUpgradeTimer) { clearInterval(autoUpgradeTimer); autoUpgradeTimer = null; }
       if (prewarmTimeout) { clearTimeout(prewarmTimeout); prewarmTimeout = null; }
       if (audioSyncInterval) { clearInterval(audioSyncInterval); audioSyncInterval = null; }
 
@@ -1107,6 +1217,8 @@
       if (v1) { v1.pause(); v1.src = ''; v1.load(); }
       if (v2) { v2.pause(); v2.src = ''; v2.load(); }
       if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'none';
+      
+      document.body.style.overflow = '';
       document.getElementById('player-modal').classList.remove('active', 'docked');
     }
 
