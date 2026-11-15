@@ -11,7 +11,7 @@
   <meta name="theme-color" content="#17171a" />
 
   <!-- Cache-busting stylesheet link -->
-  <link rel="stylesheet" href="./style.css?v=20261114-v29" onerror="/* Fallback inline styles active */" />
+  <link rel="stylesheet" href="./style.css?v=20261114-v36" onerror="/* Fallback inline styles active */" />
 
   <style>
     :root {
@@ -66,7 +66,6 @@
     .icon-btn-header { width: 34px; height: 34px; border-radius: 50%; padding: 0; justify-content: center; align-items: center; }
     .icon-btn-header svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
-    /* Flex-1 scroll area bounded strictly between header and nav bar */
     main {
       flex: 1;
       width: 100%;
@@ -156,7 +155,6 @@
     .channel-detail-view.active { display: flex; }
     .channel-detail-header { padding: 16px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border-color); }
 
-    /* Bottom Nav with balanced touch targets and bottom padding */
     nav.bottom-nav {
       flex-shrink: 0;
       width: 100%;
@@ -183,7 +181,6 @@
     .save-btn { background: var(--accent-color); color: #fff; border: none; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer; }
     .channel-item { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--bg-surface); border-radius: 12px; border: 1px solid var(--border-color); cursor: pointer; }
 
-    /* Custom Toggle Switch Component Styles */
     .toggle-switch {
       position: relative;
       display: inline-block;
@@ -225,7 +222,6 @@
       background-color: #ffffff;
     }
 
-    /* Toast Notification Styles */
     .toast-container {
       position: fixed;
       bottom: calc(var(--nav-height) + 16px);
@@ -258,7 +254,7 @@
       <div class="logo-icon"></div>
       <div class="logo-text">
         ZenTube
-        <span id="header-version-display" style="font-size: 11px; font-weight: 400; color: var(--text-secondary);">v20261114-v29</span>
+        <span id="header-version-display" style="font-size: 11px; font-weight: 400; color: var(--text-secondary);">v20261114-v36</span>
       </div>
     </div>
     <div class="header-actions">
@@ -360,6 +356,14 @@
       <video id="pingpong-video-2" class="pingpong-video staged-player" muted playsinline webkit-playsinline x-webkit-airplay="allow" crossorigin="anonymous" preload="auto"></video>
       <audio id="master-audio-element" preload="auto" style="display:none;"></audio>
 
+      <div id="video-ended-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 15; gap: 12px; color: #fff; backdrop-filter: blur(4px);">
+        <div style="font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+          <svg viewBox="0 0 24 24" style="width: 20px; height: 20px; stroke: var(--success-color); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          Video Finished
+        </div>
+        <button class="save-btn" onclick="replayVideo()" style="padding: 8px 22px; font-size: 13px; font-weight: 650; border-radius: 20px;">Watch Again</button>
+      </div>
+
       <div class="custom-controls-overlay" id="custom-controls" onclick="event.stopPropagation()">
         <div class="control-row">
           <button class="custom-play-btn" id="custom-play-pause-btn" onclick="togglePlayPause()" title="Play/Pause">
@@ -416,7 +420,7 @@
     </div>
     <div class="nav-item" onclick="switchTab('settings-view', this)">
       <div class="nav-icon">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l-.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </div>
       <span>Settings</span>
     </div>
@@ -425,7 +429,7 @@
   <script src="https://accounts.google.com/gsi/client?v=20261112" async defer onload="initGoogleAuth()"></script>
 
   <script>
-    const APP_BUILD_VERSION = '1.10.6';
+    const APP_BUILD_VERSION = '1.10.7';
     
     (function checkAppVersion() {
       const storedVersion = localStorage.getItem('zentube_app_version');
@@ -450,14 +454,13 @@
     let tokenClient = null;
     let accessToken = localStorage.getItem('zentube_token') || null;
     let clientId = localStorage.getItem('zentube_client_id') || '';
+    
     function formatProxyUrl(inputUrl) {
       if (!inputUrl || typeof inputUrl !== 'string') return '';
       let cleaned = inputUrl.replace(/[\s\u200B-\u200D\uFEFF]/g, '');
       if (!cleaned) return '';
-
       cleaned = cleaned.replace(/^\/+/, '').replace(/^https?:\/*/i, '');
       cleaned = 'https://' + cleaned;
-
       try {
         const parsed = new URL(cleaned);
         parsed.protocol = 'https:';
@@ -481,6 +484,7 @@
     let autoUpgradeTimer = null;
     let prewarmTimeout = null;
     let isStagingPrewarmed = false;
+    let videoDurationSeconds = 0;
     
     let masterFeedPool = [];
     let displayedVideoCount = 0;
@@ -621,7 +625,13 @@
       const audioEl = document.getElementById('master-audio-element');
       const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
       const iconSvg = document.getElementById('play-pause-icon-svg');
+      const endedOverlay = document.getElementById('video-ended-overlay');
       if (!audioEl) return;
+
+      if (endedOverlay && endedOverlay.style.display === 'flex') {
+        replayVideo();
+        return;
+      }
 
       if (!audioEl.paused) {
         audioEl.pause();
@@ -643,14 +653,24 @@
       const percentage = Math.max(0, Math.min(1, clickX / rect.width));
       const audioEl = document.getElementById('master-audio-element');
       const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
-      const duration = audioEl ? (audioEl.duration || 213) : 213;
+      const duration = videoDurationSeconds || (audioEl ? audioEl.duration : 0) || 213;
       const targetTime = percentage * duration;
 
-      if (audioEl) audioEl.currentTime = targetTime;
-      if (activeVideo) activeVideo.currentTime = targetTime;
+      const endedOverlay = document.getElementById('video-ended-overlay');
+      if (endedOverlay) endedOverlay.style.display = 'none';
+
+      if (audioEl) {
+        audioEl.currentTime = targetTime;
+        audioEl.play().catch(() => {});
+      }
+      if (activeVideo) {
+        activeVideo.currentTime = targetTime;
+        activeVideo.play().catch(() => {});
+      }
 
       updateTimeAndProgress();
       resetControlsHideTimer();
+      logVerbose(`[Seek] Scrubbed to ${formatTime(targetTime)}`);
     }
 
     function toggleFullscreen() {
@@ -711,8 +731,27 @@
     function updateTimeAndProgress() {
       const audioEl = document.getElementById('master-audio-element');
       if (!audioEl) return;
-      const currentTime = audioEl.currentTime;
-      const duration = audioEl.duration || 213;
+      const duration = videoDurationSeconds || audioEl.duration || 213;
+      let currentTime = audioEl.currentTime;
+
+      if (duration > 0 && currentTime >= duration) {
+        currentTime = duration;
+        const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
+        if (!audioEl.paused) {
+          audioEl.pause();
+          if (activeVideo) activeVideo.pause();
+          if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+          
+          const iconSvg = document.getElementById('play-pause-icon-svg');
+          if (iconSvg) iconSvg.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
+          
+          const endedOverlay = document.getElementById('video-ended-overlay');
+          if (endedOverlay) endedOverlay.style.display = 'flex';
+          
+          logVerbose('Video playback reached the end.');
+        }
+      }
+
       const timeDisplay = document.getElementById('time-display');
       const progress = document.getElementById('scrub-progress');
 
@@ -720,6 +759,36 @@
       if (progress && duration > 0) {
         progress.style.width = `${(currentTime / duration) * 100}%`;
       }
+
+      if ('mediaSession' in navigator && typeof navigator.mediaSession.setPositionState === 'function' && duration > 0) {
+        try {
+          navigator.mediaSession.setPositionState({
+            duration: duration,
+            playbackRate: audioEl.playbackRate || 1.0,
+            position: Math.min(currentTime, duration)
+          });
+        } catch (e) {}
+      }
+    }
+
+    function replayVideo() {
+      const audioEl = document.getElementById('master-audio-element');
+      const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
+      const endedOverlay = document.getElementById('video-ended-overlay');
+      const iconSvg = document.getElementById('play-pause-icon-svg');
+
+      if (endedOverlay) endedOverlay.style.display = 'none';
+      if (audioEl) {
+        audioEl.currentTime = 0;
+        audioEl.play().catch(() => {});
+      }
+      if (activeVideo) {
+        activeVideo.currentTime = 0;
+        activeVideo.play().catch(() => {});
+      }
+      if (iconSvg) iconSvg.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+      if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+      logVerbose('Replaying video from start.');
     }
 
     function getFormatHeight(f) {
@@ -742,6 +811,10 @@
       activePlayerId = '1';
       isHandoffInProgress = false;
       isStagingPrewarmed = false;
+      videoDurationSeconds = 0;
+
+      const endedOverlay = document.getElementById('video-ended-overlay');
+      if (endedOverlay) endedOverlay.style.display = 'none';
 
       if (autoUpgradeTimer) { clearInterval(autoUpgradeTimer); autoUpgradeTimer = null; }
       if (prewarmTimeout) { clearTimeout(prewarmTimeout); prewarmTimeout = null; }
@@ -788,6 +861,11 @@
         const res = await fetch(fetchUrl);
         if (!res.ok) throw new Error(`HTTP ${res.status} from proxy instance`);
         const data = await res.json();
+
+        if (data.lengthSeconds && typeof data.lengthSeconds === 'number') {
+          videoDurationSeconds = data.lengthSeconds;
+          logVerbose(`Authoritative video duration loaded: ${videoDurationSeconds}s`);
+        }
 
         if (data.adaptiveFormats) {
           const audioFormats = data.adaptiveFormats.filter(f => f.type && f.type.startsWith('audio/'));
