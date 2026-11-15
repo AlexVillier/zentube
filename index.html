@@ -11,7 +11,7 @@
   <meta name="theme-color" content="#17171a" />
 
   <!-- Cache-busting stylesheet link -->
-  <link rel="stylesheet" href="./style.css?v=20261112-v25" onerror="/* Fallback inline styles active */" />
+  <link rel="stylesheet" href="./style.css?v=20261114-v29" onerror="/* Fallback inline styles active */" />
 
   <style>
     :root {
@@ -139,8 +139,6 @@
     .scrub-bar { position: relative; width: 100%; height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; overflow: hidden; }
     .scrub-progress { position: absolute; top: 0; left: 0; height: 100%; background: var(--accent-color); width: 0%; }
 
-    .quality-selector { background: var(--bg-surface-elevated); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 6px; padding: 4px 8px; font-size: 12px; font-weight: 600; cursor: pointer; }
-
     .player-details { padding: 16px; flex: 1; display: flex; flex-direction: column; gap: 12px; }
     .debug-terminal-header { display: flex; justify-content: space-between; align-items: center; }
     .icon-btn-tiny { background: var(--bg-surface-elevated); border: 1px solid var(--border-color); color: var(--text-primary); width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
@@ -158,7 +156,7 @@
     .channel-detail-view.active { display: flex; }
     .channel-detail-header { padding: 16px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border-color); }
 
-    /* Bottom Nav with +20px additional bottom padding (40px total bottom padding) */
+    /* Bottom Nav with balanced touch targets and bottom padding */
     nav.bottom-nav {
       flex-shrink: 0;
       width: 100%;
@@ -260,7 +258,7 @@
       <div class="logo-icon"></div>
       <div class="logo-text">
         ZenTube
-        <span id="header-version-display" style="font-size: 11px; font-weight: 400; color: var(--text-secondary);">v20261112-v25</span>
+        <span id="header-version-display" style="font-size: 11px; font-weight: 400; color: var(--text-secondary);">v20261114-v29</span>
       </div>
     </div>
     <div class="header-actions">
@@ -301,7 +299,7 @@
       <div class="section-title">Settings & Configuration</div>
       <div class="settings-card">
         <label style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">Custom Stream Proxy URL (Invidious API Instance)</label>
-        <input type="text" id="proxy-url-input" class="input-field" placeholder="e.g. https://knowing-animal-dubai-divine.trycloudflare.com" />
+        <input type="url" id="proxy-url-input" class="input-field" placeholder="e.g. proxy.yourdomain.com" autocapitalize="none" autocorrect="off" spellcheck="false" onblur="this.value = formatProxyUrl(this.value)" onkeypress="if(event.key === 'Enter') saveProxyUrl()" />
         <button class="save-btn" onclick="saveProxyUrl()">Save Proxy URL</button>
       </div>
       <div class="settings-card">
@@ -346,14 +344,8 @@
 
   <div class="player-modal" id="player-modal">
     <div class="player-header">
-      <span class="video-title" id="player-title" style="font-size: 13px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Playing</span>
+      <span class="video-title" id="player-title" style="font-size: 13px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Playing</span>
       <div class="player-actions">
-        <select id="quality-selector" class="quality-selector" onchange="changeQuality(this.value)">
-          <option value="">Auto</option>
-        </select>
-        <button class="icon-btn-circle highlight" id="pip-btn" onclick="triggerSystemPip()" title="Trigger PiP">
-          <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><rect x="11" y="9" width="9" height="6" rx="1" fill="currentColor"/></svg>
-        </button>
         <button class="icon-btn-circle" onclick="toggleDockPlayer()" title="Dock">
           <svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
         </button>
@@ -424,7 +416,7 @@
     </div>
     <div class="nav-item" onclick="switchTab('settings-view', this)">
       <div class="nav-icon">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l-.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </div>
       <span>Settings</span>
     </div>
@@ -433,7 +425,7 @@
   <script src="https://accounts.google.com/gsi/client?v=20261112" async defer onload="initGoogleAuth()"></script>
 
   <script>
-    const APP_BUILD_VERSION = '1.10.5';
+    const APP_BUILD_VERSION = '1.10.6';
     
     (function checkAppVersion() {
       const storedVersion = localStorage.getItem('zentube_app_version');
@@ -458,7 +450,27 @@
     let tokenClient = null;
     let accessToken = localStorage.getItem('zentube_token') || null;
     let clientId = localStorage.getItem('zentube_client_id') || '';
-    let proxyUrl = localStorage.getItem('zentube_proxy_url') || '';
+    function formatProxyUrl(inputUrl) {
+      if (!inputUrl || typeof inputUrl !== 'string') return '';
+      let cleaned = inputUrl.replace(/[\s\u200B-\u200D\uFEFF]/g, '');
+      if (!cleaned) return '';
+
+      cleaned = cleaned.replace(/^\/+/, '').replace(/^https?:\/*/i, '');
+      cleaned = 'https://' + cleaned;
+
+      try {
+        const parsed = new URL(cleaned);
+        parsed.protocol = 'https:';
+        return parsed.origin + parsed.pathname.replace(/\/+$/, '');
+      } catch (e) {
+        return cleaned.replace(/\/+$/, '');
+      }
+    }
+
+    let proxyUrl = formatProxyUrl(localStorage.getItem('zentube_proxy_url') || '');
+    if (proxyUrl) {
+      localStorage.setItem('zentube_proxy_url', proxyUrl);
+    }
     let debugMode = localStorage.getItem('zentube_debug_mode') === 'true';
     let currentVideoId = null;
     let availableVideoFormats = [];
@@ -478,7 +490,7 @@
     let audioSyncInterval = null;
 
     const demoVideos = [
-      { id: 'dQw4w9WgXcQ', title: 'Rick Astley - Never Gonna Give You Up', channel: 'Rick Astley', duration: 213, thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg', publishedAt: new Date() }
+      { id: 'dQw4w9WgXcQ', title: 'Rick Astley - Never Gonna Give You Up', channel: 'Rick Astley', duration: 213, thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg', publishedAt: new Date() }
     ];
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -746,7 +758,7 @@
       document.getElementById('debug-terminal').innerHTML = '';
 
       logVerbose(`Opening stutter-free pre-roll native audio stream for videoId: ${videoId}`);
-      updateMediaSessionMetadata(title, channel, thumbnail || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`);
+      updateMediaSessionMetadata(title, channel, thumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`);
 
       const v1 = document.getElementById('pingpong-video-1');
       const v2 = document.getElementById('pingpong-video-2');
@@ -765,6 +777,7 @@
         audioEl.load();
       }
 
+      proxyUrl = formatProxyUrl(proxyUrl);
       if (!proxyUrl) {
         logVerbose('Proxy URL is not configured. Please add one in Settings.', 'error');
         return;
@@ -789,24 +802,10 @@
           const videoFormat = availableVideoFormats[currentQualityIndex];
 
           if (audioFormat && videoFormat) {
-            populateQualitySelector(availableVideoFormats);
             await initFrameLockedPlayback(audioFormat, videoFormat);
           }
         }
       } catch (err) { logVerbose(`Stream extraction error: ${err.message}`, 'error'); }
-    }
-
-    function populateQualitySelector(formats) {
-      const selector = document.getElementById('quality-selector');
-      selector.innerHTML = '';
-      formats.forEach((f, idx) => {
-        const h = getFormatHeight(f);
-        const opt = document.createElement('option');
-        opt.value = idx;
-        opt.textContent = `${h}p`;
-        if (idx === currentQualityIndex) opt.selected = true;
-        selector.appendChild(opt);
-      });
     }
 
     async function initFrameLockedPlayback(audioFormat, videoFormat) {
@@ -950,27 +949,15 @@
             if (targetIndex !== -1 && targetIndex !== currentQualityIndex) {
               const targetFormat = availableVideoFormats[targetIndex];
               logVerbose(`[AutoABR] Buffer healthy (${bufferedAhead.toFixed(1)}s ahead). Upgrading to ${getFormatHeight(targetFormat)}p...`);
-              
-              const selector = document.getElementById('quality-selector');
-              if (selector) selector.value = targetIndex;
-
-              changeQuality(targetIndex.toString());
+              autoUpgradeQuality(targetIndex);
             }
           }
         } catch (e) {}
       }, 1000);
     }
 
-    async function changeQuality(indexStr) {
-      if (indexStr === '' || isHandoffInProgress) return;
-      
-      if (autoUpgradeTimer) {
-        clearInterval(autoUpgradeTimer);
-        autoUpgradeTimer = null;
-      }
-
-      const targetIndex = parseInt(indexStr, 10);
-      if (targetIndex === currentQualityIndex) return;
+    async function autoUpgradeQuality(targetIndex) {
+      if (targetIndex === currentQualityIndex || isHandoffInProgress) return;
 
       const videoFormat = availableVideoFormats[targetIndex];
       if (!videoFormat) return;
@@ -1202,7 +1189,7 @@
                   if (!videoId || snippet.title === 'Deleted video' || snippet.title === 'Private video') return;
 
                   const thumbnails = snippet.thumbnails || {};
-                  const thumbUrl = thumbnails.medium?.url || thumbnails.default?.url || `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
+                  const thumbUrl = thumbnails.maxres?.url || thumbnails.standard?.url || thumbnails.high?.url || thumbnails.medium?.url || thumbnails.default?.url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
                   
                   const publishedDate = new Date(snippet.publishedAt || 0);
                   
@@ -1314,12 +1301,16 @@
           if (playlistData.items) {
             const videos = playlistData.items
               .filter(item => item.snippet?.resourceId?.videoId && item.snippet.title !== 'Deleted video' && item.snippet.title !== 'Private video')
-              .map(item => ({
-                id: item.snippet.resourceId.videoId,
-                title: item.snippet.title,
-                channel: item.snippet.channelTitle,
-                thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url || `https://i.ytimg.com/vi/${item.snippet.resourceId.videoId}/mqdefault.jpg`
-              }));
+              .map(item => {
+                const thumb = item.snippet.thumbnails || {};
+                const bestThumb = thumb.maxres?.url || thumb.standard?.url || thumb.high?.url || thumb.medium?.url || thumb.default?.url || `https://i.ytimg.com/vi/${item.snippet.resourceId.videoId}/hqdefault.jpg`;
+                return {
+                  id: item.snippet.resourceId.videoId,
+                  title: item.snippet.title,
+                  channel: item.snippet.channelTitle,
+                  thumbnail: bestThumb
+                };
+              });
             renderFeedInitial(videos, 'channel-videos-grid');
           }
         }
@@ -1339,12 +1330,16 @@
         });
         const data = await res.json();
         if (data.items) {
-          const results = data.items.map(item => ({
-            id: item.id.videoId,
-            title: item.snippet.title,
-            channel: item.snippet.channelTitle,
-            thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url || `https://i.ytimg.com/vi/${item.id.videoId}/mqdefault.jpg`
-          }));
+          const results = data.items.map(item => {
+            const thumb = item.snippet.thumbnails || {};
+            const bestThumb = thumb.maxres?.url || thumb.standard?.url || thumb.high?.url || thumb.medium?.url || thumb.default?.url || `https://i.ytimg.com/vi/${item.id.videoId}/hqdefault.jpg`;
+            return {
+              id: item.id.videoId,
+              title: item.snippet.title,
+              channel: item.snippet.channelTitle,
+              thumbnail: bestThumb
+            };
+          });
           renderFeedInitial(results, 'search-grid');
         }
       } catch (err) { grid.innerHTML = '<p style="color: var(--text-secondary);">Search failed.</p>'; }
@@ -1364,19 +1359,6 @@
       if ('mediaSession' in navigator) {
         navigator.mediaSession.metadata = new MediaMetadata({ title, artist: channel, album: 'ZenTube', artwork: [{ src: thumbnail, sizes: '512x512', type: 'image/jpeg' }] });
         navigator.mediaSession.playbackState = 'playing';
-      }
-    }
-
-    function triggerSystemPip() {
-      const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
-      if (activeVideo && document.pictureInPictureEnabled && !activeVideo.disablePictureInPicture) {
-        if (document.pictureInPictureElement) {
-          document.exitPictureInPicture().catch(err => logVerbose(`PiP exit error: ${err.message}`, 'warn'));
-        } else {
-          activeVideo.requestPictureInPicture().catch(err => logVerbose(`PiP request error: ${err.message}`, 'warn'));
-        }
-      } else {
-        logVerbose('Picture-in-Picture not supported on this browser.', 'warn');
       }
     }
 
@@ -1420,9 +1402,12 @@
     }
 
     function saveProxyUrl() {
-      proxyUrl = document.getElementById('proxy-url-input').value.trim().replace(/\/$/, '');
+      const rawInput = document.getElementById('proxy-url-input').value;
+      proxyUrl = formatProxyUrl(rawInput);
+      document.getElementById('proxy-url-input').value = proxyUrl;
       localStorage.setItem('zentube_proxy_url', proxyUrl);
       showToast('Proxy Saved!');
+      logVerbose(`Proxy URL saved as: ${proxyUrl}`);
     }
 
     function saveClientId() {
