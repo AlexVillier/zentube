@@ -26,8 +26,89 @@ ZenTube decouples audio and video streams using direct adaptive format streams f
 
 ### Prerequisites
 * A modern mobile browser (Safari on iOS or Chrome on Android).
-* A running **Invidious API Instance** (publicly available or self-hosted behind an HTTPS proxy).
+* A running **Invidious API Instance** (configured with API access enabled).
 * A **Google Cloud Console Account** (required if you wish to sync your personal YouTube subscriptions).
+
+---
+
+## 🛠️ Step-by-Step Guide: Setting Up a ZenTube-Compatible Invidious Backend
+
+To stream videos smoothly without CORS or proxy errors, ZenTube requires an Invidious backend instance that has **API requests enabled** and **sig-decryption/local proxying** correctly configured. 
+
+The easiest and most reliable way to host your own Invidious instance is using **Docker Compose**.
+
+### Step 1: Prepare Your Server Environment
+1. Ensure your server or local machine has **Docker** and **Docker Compose** installed.
+2. Create a new directory for your Invidious deployment:
+   ```bash
+   mkdir zentube-invidious && cd zentube-invidious
+   ```
+
+### Step 2: Create the `docker-compose.yml` File
+Create a `docker-compose.yml` file using your favorite text editor and paste the following configuration:
+
+```yaml
+version: '3.8'
+
+services:
+  invidious:
+    image: quay.io/invidious/invidious:latest
+    container-name: invidious-server
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - INVIDIOUS_CONFIG='{"db":{"user":"invidious","password":"invidious_password","host":"postgres","dbname":"invidious"},"domain":"localhost:3000","http_proxy":""}'
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=invidious
+      - POSTGRES_PASSWORD=invidious_password
+      - POSTGRES_DB=invidious
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
+```
+
+### Step 3: Configure Invidious for ZenTube Compatibility
+By default, Invidious requires specific flags enabled so ZenTube can fetch raw adaptive media URLs and route video chunks without CORS blocks. 
+
+Create a configuration file named `config.json` in the same directory:
+
+```json
+{
+  "db": {
+    "user": "invidious",
+    "password": "invidious_password",
+    "host": "postgres",
+    "dbname": "invidious"
+  },
+  "domain": "your-server-ip-or-domain.com",
+  "http_proxy": "",
+  "port": "3000",
+  "enable_api": true,
+  "sign_in": true,
+  "default_home": "popular",
+  "proxy_video": true
+}
+```
+
+*Important flags for ZenTube:*
+* `"enable_api": true`: Must be enabled so ZenTube can fetch JSON metadata and adaptive video/audio stream arrays (`/api/v1/videos/:id`).
+* `"proxy_video": true`: Ensures media segments route cleanly through your instance to bypass restrictive YouTube geo-blocks and CORS limitations.
+
+### Step 4: Launch Your Invidious Backend
+Run the following command to start your database and Invidious server in the background:
+```bash
+docker-compose up -d
+```
+You can verify the instance is running by opening `http://<your-server-ip>:3000` in your browser. *(Note: For production mobile PWA usage, it is strongly recommended to sit your Invidious instance behind an HTTPS reverse proxy like Nginx Proxy Manager, Caddy, or Cloudflare Tunnels).*
 
 ---
 
@@ -73,7 +154,7 @@ Follow these step-by-step instructions:
 
 1. Open **ZenTube** in your browser or PWA container.
 2. Tap the **Settings** tab in the bottom navigation bar.
-3. Paste your **Custom Stream Proxy URL** (your Invidious instance URL, e.g., `https://invidious.example.com`) and click **Save Proxy URL**.
+3. Paste your **Custom Stream Proxy URL** (your Invidious instance URL, e.g., `https://invidious.example.com` or `http://your-server-ip:3000`) and click **Save Proxy URL**.
 4. Paste your newly generated **Google OAuth Client ID** into the OAuth field and click **Save Client ID**.
 5. Head back to the main feed, click **Sign In**, and enjoy your ad-free, stutter-free streaming experience!
 
@@ -86,4 +167,3 @@ Contributions, bug reports, and feature requests are welcome! Feel free to open 
 ## 📄 License
 
 Distributed under the MIT License. See `LICENSE` for more information.
-
