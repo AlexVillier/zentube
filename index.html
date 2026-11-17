@@ -102,7 +102,18 @@
     .icon-btn-circle { background: var(--bg-surface-elevated); border: 1px solid var(--border-color); color: var(--text-primary); width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
     .icon-btn-circle svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
-    .player-container { width: 100%; aspect-ratio: 16 / 9; background: #000; position: relative; flex-shrink: 0; overflow: hidden; transition: none; }
+    .player-container {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #000;
+      position: relative;
+      flex-shrink: 0;
+      overflow: hidden;
+      transition: none;
+      transform: translate3d(0, 0, 0);
+      backface-visibility: hidden;
+      touch-action: manipulation;
+    }
 
     .player-modal.compositor-fullscreen {
       position: fixed !important;
@@ -112,9 +123,6 @@
       height: 100dvh !important;
       z-index: 9999 !important;
       background: #000 !important;
-      will-change: transform;
-      transform: translate3d(0, 0, 0);
-      backface-visibility: hidden;
       overflow: hidden;
     }
     .player-modal.compositor-fullscreen .player-header,
@@ -126,8 +134,6 @@
       height: 100vh !important;
       height: 100dvh !important;
       aspect-ratio: unset !important;
-      will-change: transform;
-      transform: translate3d(0, 0, 0);
     }
     .player-modal.compositor-fullscreen .custom-controls-overlay {
       padding-bottom: calc(env(safe-area-inset-bottom, 16px) + 12px);
@@ -138,28 +144,73 @@
       top: 0; left: 0; width: 100%; height: 100%;
       object-fit: contain; background: #000;
       opacity: 0; pointer-events: none; transition: none;
+      transform: translate3d(0, 0, 0);
+      backface-visibility: hidden;
     }
     .pingpong-video.active-player { opacity: 1; pointer-events: auto; z-index: 2; }
     .pingpong-video.staged-player { opacity: 0; pointer-events: none; z-index: 1; }
 
+    .seek-feedback-badge {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%) scale(0.9);
+      background: rgba(23, 23, 26, 0.82);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: #fff;
+      padding: 12px 18px;
+      border-radius: 28px;
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      z-index: 12;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+    .seek-feedback-badge.left { left: 14%; }
+    .seek-feedback-badge.right { right: 14%; }
+    .seek-feedback-badge.active {
+      opacity: 1;
+      transform: translateY(-50%) scale(1);
+    }
+    .seek-feedback-badge svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
     .custom-controls-overlay {
       position: absolute;
       bottom: 0; left: 0; width: 100%;
-      background: linear-gradient(transparent, rgba(0,0,0,0.85));
+      background: linear-gradient(transparent, rgba(0,0,0,0.88));
       z-index: 10;
       display: flex; flex-direction: column; gap: 6px;
-      padding: 12px 16px 10px;
+      padding: 12px 14px 10px;
       opacity: 1;
       transition: opacity 0.3s ease;
     }
     .custom-controls-overlay.hidden { opacity: 0; pointer-events: none; }
     
-    .control-row { display: flex; align-items: center; gap: 12px; width: 100%; }
-    .custom-play-btn { background: none; border: none; color: #fff; cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; }
+    .control-row { display: flex; align-items: center; gap: 8px; width: 100%; }
+    .custom-play-btn { background: none; border: none; color: #fff; cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 50%; }
+    .custom-play-btn:active { background: rgba(255, 255, 255, 0.15); }
     .custom-play-btn svg { width: 18px; height: 18px; fill: currentColor; stroke: none; }
-    .time-display { font-family: monospace; font-size: 12px; color: #f3f3f5; min-width: 85px; }
+    .custom-skip-btn { background: none; border: none; color: #fff; cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 50%; position: relative; }
+    .custom-skip-btn:active { background: rgba(255, 255, 255, 0.15); }
+    .custom-skip-btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .custom-skip-btn span { position: absolute; font-size: 8px; font-weight: 800; top: 53%; left: 50%; transform: translate(-50%, -50%); letter-spacing: -0.4px; }
+
+    .time-display { font-family: monospace; font-size: 11px; color: #f3f3f5; min-width: 78px; flex-shrink: 0; }
     
-    .scrub-container { flex: 1; position: relative; height: 20px; display: flex; align-items: center; cursor: pointer; }
+    .scrub-container { flex: 1; position: relative; height: 22px; display: flex; align-items: center; cursor: pointer; min-width: 50px; }
     .scrub-bar { position: relative; width: 100%; height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; overflow: hidden; }
     .scrub-progress { position: absolute; top: 0; left: 0; height: 100%; background: var(--accent-color); width: 0%; }
 
@@ -261,7 +312,7 @@
       <div class="logo-icon"></div>
       <div class="logo-text">
         ZenTube
-        <span id="header-version-display" style="font-size: 11px; font-weight: 400; color: var(--text-secondary);">v20261116-v78</span>
+        <span id="header-version-display" style="font-size: 11px; font-weight: 400; color: var(--text-secondary);">v20261117-v93</span>
       </div>
     </div>
     <div class="header-actions">
@@ -358,11 +409,21 @@
       </div>
     </div>
     
-    <div class="player-container" id="player-viewport" onclick="toggleCustomControls()">
+    <div class="player-container" id="player-viewport" onclick="handleViewportTap(event)">
       <div class="player-loading-overlay" id="player-loading-overlay">
         <div class="spinner-ring"></div>
         <div class="loading-text" id="player-loading-status">Loading video stream...</div>
       </div>
+
+      <div class="seek-feedback-badge left" id="seek-feedback-left">
+        <svg viewBox="0 0 24 24"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
+        <span>10s</span>
+      </div>
+      <div class="seek-feedback-badge right" id="seek-feedback-right">
+        <span>10s</span>
+        <svg viewBox="0 0 24 24"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+      </div>
+
       <video id="pingpong-video-1" class="pingpong-video active-player" muted playsinline webkit-playsinline x-webkit-airplay="allow" crossorigin="anonymous" preload="auto"></video>
       <video id="pingpong-video-2" class="pingpong-video staged-player" muted playsinline webkit-playsinline x-webkit-airplay="allow" crossorigin="anonymous" preload="auto"></video>
       <audio id="master-audio-element" crossorigin="anonymous" preload="auto" style="display:none;"></audio>
@@ -377,8 +438,16 @@
 
       <div class="custom-controls-overlay" id="custom-controls" onclick="event.stopPropagation()">
         <div class="control-row">
+          <button class="custom-skip-btn" onclick="skipRelativeSeconds(-10)" title="Rewind 10 seconds">
+            <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            <span>10</span>
+          </button>
           <button class="custom-play-btn" id="custom-play-pause-btn" onclick="togglePlayPause()" title="Play/Pause">
             <svg id="play-pause-icon-svg" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+          </button>
+          <button class="custom-skip-btn" onclick="skipRelativeSeconds(10)" title="Forward 10 seconds">
+            <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+            <span>10</span>
           </button>
           <div class="time-display" id="time-display">0:00 / 0:00</div>
           <div class="scrub-container" onclick="handleScrub(event)">
@@ -432,7 +501,7 @@
   <script src="https://accounts.google.com/gsi/client?v=20261112" async defer onload="initGoogleAuth()"></script>
 
   <script>
-    const APP_BUILD_VERSION = '1.10.8';
+    const APP_BUILD_VERSION = '1.10.9';
     
     (function checkAppVersion() {
       const storedVersion = localStorage.getItem('zentube_app_version');
@@ -488,7 +557,9 @@
     let currentQualityIndex = 0;
     let activePlayerId = '1';
     let isHandoffInProgress = false;
+    let pendingAbrSwapTarget = null;
     let fullscreenRequestToken = 0;
+    let isUserPaused = false;
     
     let lastViewTransitionTime = 0;
     const VIEW_TRANSITION_COOLDOWN_MS = 300;
@@ -501,6 +572,13 @@
     let prewarmTimeout = null;
     let isStagingPrewarmed = false;
     let videoDurationSeconds = 0;
+
+    let lastViewportTapTime = 0;
+    let lastViewportTapSide = null;
+    let singleTapTimer = null;
+    let seekFeedbackTimer = null;
+    let cumulativeSeekDelta = 0;
+    const DOUBLE_TAP_WINDOW_MS = 280;
 
     let audioCtx = null;
     let audioSourceNode = null;
@@ -544,7 +622,8 @@
       document.getElementById('proxy-url-input').value = proxyUrl;
       document.getElementById('debug-mode-toggle').checked = debugMode;
       applyDebugModeUI();
-      setupMediaSessionHandlers();
+      attachVideoContinuityGuards();
+      setupMasterAudioSeekGuards();
       setupVisibilityHandler();
       setupInfiniteScroll();
       setupViewTransitionListeners();
@@ -560,6 +639,68 @@
         renderFeedInitial(masterFeedPool, 'video-grid');
       }
     });
+
+    function attachVideoContinuityGuards() {
+      ['1', '2'].forEach((id) => {
+        const videoEl = document.getElementById(`pingpong-video-${id}`);
+        if (!videoEl) return;
+
+        videoEl.addEventListener('pause', () => {
+          if (activePlayerId !== id) return;
+          if (isUserPaused || document.hidden) return;
+
+          const audioEl = document.getElementById('master-audio-element');
+          if (!audioEl || audioEl.paused) return;
+
+          logVerbose('[Continuity] Intercepted implicit browser pause on active video; resuming immediately.');
+          requestAnimationFrame(() => {
+            if (activePlayerId === id && !isUserPaused && !audioEl.paused && !document.hidden) {
+              if (Math.abs(videoEl.currentTime - audioEl.currentTime) > 0.25) {
+                videoEl.currentTime = audioEl.currentTime;
+              }
+              videoEl.play().catch(() => {});
+            }
+          });
+        });
+      });
+    }
+
+    function setupMasterAudioSeekGuards() {
+      const audioEl = document.getElementById('master-audio-element');
+      if (!audioEl) return;
+
+      audioEl.addEventListener('seeking', () => {
+        const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
+        if (activeVideo && !activeVideo.paused) {
+          activeVideo.pause();
+        }
+      });
+
+      audioEl.addEventListener('seeked', () => {
+        const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
+        if (activeVideo && !isUserPaused && !document.hidden) {
+          if (Math.abs(activeVideo.currentTime - audioEl.currentTime) > 0.1) {
+            activeVideo.currentTime = audioEl.currentTime;
+          }
+          activeVideo.play().catch(() => {});
+          audioEl.play().catch(() => {});
+        }
+      });
+
+      audioEl.addEventListener('waiting', () => {
+        const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
+        if (activeVideo && !activeVideo.paused) {
+          activeVideo.pause();
+        }
+      });
+
+      audioEl.addEventListener('canplay', () => {
+        const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
+        if (activeVideo && !isUserPaused && !audioEl.paused && activeVideo.paused && !document.hidden) {
+          activeVideo.play().catch(() => {});
+        }
+      });
+    }
 
     function setupAutoLandscapeFullscreen() {
       const mediaQuery = window.matchMedia('(orientation: landscape)');
@@ -585,7 +726,14 @@
         if (now - lastViewTransitionTime < VIEW_TRANSITION_COOLDOWN_MS) return;
         lastViewTransitionTime = now;
         if (viewResizeTimer) clearTimeout(viewResizeTimer);
-        viewResizeTimer = setTimeout(() => { logVerbose('[ViewManager] Viewport / orientation resize transition stabilized.'); }, 200);
+        viewResizeTimer = setTimeout(() => {
+          const audioEl = document.getElementById('master-audio-element');
+          const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
+          if (audioEl && !audioEl.paused && !isUserPaused && activeVideo && activeVideo.paused && !document.hidden) {
+            activeVideo.play().catch(() => {});
+          }
+          logVerbose('[ViewManager] Viewport / orientation resize transition stabilized.');
+        }, 200);
       });
     }
 
@@ -674,6 +822,102 @@
       }
     }
 
+    function skipRelativeSeconds(deltaSeconds, showBadge = true) {
+      const audioEl = document.getElementById('master-audio-element');
+      const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
+      if (!audioEl) return;
+
+      const duration = videoDurationSeconds || audioEl.duration || 213;
+      const targetTime = Math.max(0, Math.min(duration, audioEl.currentTime + deltaSeconds));
+
+      const endedOverlay = document.getElementById('video-ended-overlay');
+      if (endedOverlay && targetTime < duration) {
+        endedOverlay.style.display = 'none';
+      }
+
+      audioEl.currentTime = targetTime;
+      if (activeVideo) {
+        activeVideo.currentTime = targetTime;
+        if (!audioEl.paused && !isUserPaused && activeVideo.paused) {
+          activeVideo.play().catch(() => {});
+        }
+      }
+      audioEl.play().catch(() => {});
+
+      updateTimeAndProgress();
+      resetControlsHideTimer();
+
+      if (showBadge) {
+        triggerSeekFeedbackBadge(deltaSeconds);
+      }
+      logVerbose(`[Seek] Jumped ${deltaSeconds > 0 ? '+' : ''}${deltaSeconds}s to ${formatTime(targetTime)}.`);
+    }
+
+    function triggerSeekFeedbackBadge(deltaSeconds) {
+      const leftBadge = document.getElementById('seek-feedback-left');
+      const rightBadge = document.getElementById('seek-feedback-right');
+      if (!leftBadge || !rightBadge) return;
+
+      const isForward = deltaSeconds > 0;
+      if ((isForward && cumulativeSeekDelta < 0) || (!isForward && cumulativeSeekDelta > 0)) {
+        cumulativeSeekDelta = 0;
+      }
+      cumulativeSeekDelta += deltaSeconds;
+
+      leftBadge.classList.remove('active');
+      rightBadge.classList.remove('active');
+
+      const targetBadge = isForward ? rightBadge : leftBadge;
+      const labelSpan = targetBadge.querySelector('span');
+      if (labelSpan) {
+        labelSpan.textContent = `${Math.abs(cumulativeSeekDelta)}s`;
+      }
+      targetBadge.classList.add('active');
+
+      if (seekFeedbackTimer) clearTimeout(seekFeedbackTimer);
+      seekFeedbackTimer = setTimeout(() => {
+        leftBadge.classList.remove('active');
+        rightBadge.classList.remove('active');
+        cumulativeSeekDelta = 0;
+      }, 650);
+    }
+
+    function handleViewportTap(event) {
+      const viewport = document.getElementById('player-viewport');
+      if (!viewport) {
+        toggleCustomControls();
+        return;
+      }
+
+      const rect = viewport.getBoundingClientRect();
+      const relativeX = (event.clientX - rect.left) / rect.width;
+      const tapSide = relativeX < 0.35 ? 'left' : (relativeX > 0.65 ? 'right' : 'center');
+      const now = Date.now();
+
+      if (tapSide !== 'center' && (now - lastViewportTapTime) < DOUBLE_TAP_WINDOW_MS && lastViewportTapSide === tapSide) {
+        if (singleTapTimer) {
+          clearTimeout(singleTapTimer);
+          singleTapTimer = null;
+        }
+        lastViewportTapTime = now;
+        skipRelativeSeconds(tapSide === 'left' ? -10 : 10, true);
+        return;
+      }
+
+      lastViewportTapTime = now;
+      lastViewportTapSide = tapSide;
+
+      if (singleTapTimer) clearTimeout(singleTapTimer);
+      if (tapSide === 'center') {
+        toggleCustomControls();
+      } else {
+        singleTapTimer = setTimeout(() => {
+          toggleCustomControls();
+          singleTapTimer = null;
+        }, DOUBLE_TAP_WINDOW_MS);
+      }
+    }
+
     function togglePlayPause() {
       ensureAudioContextGraph();
       const audioEl = document.getElementById('master-audio-element');
@@ -688,13 +932,18 @@
       }
 
       if (!audioEl.paused) {
+        isUserPaused = true;
         audioEl.pause();
         activeVideo.pause();
         if (iconSvg) iconSvg.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
       } else {
+        isUserPaused = false;
         if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
         audioEl.play().catch(() => {});
+        if (Math.abs(activeVideo.currentTime - audioEl.currentTime) > 0.25) {
+          activeVideo.currentTime = audioEl.currentTime;
+        }
         activeVideo.play().catch(() => {});
         if (iconSvg) iconSvg.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
@@ -703,10 +952,13 @@
     }
 
     async function explicitPlayPlayback() {
+      ensureAudioContextGraph();
       const audioEl = document.getElementById('master-audio-element');
       const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
       const iconSvg = document.getElementById('play-pause-icon-svg');
       if (!audioEl) return;
+
+      isUserPaused = false;
 
       try {
         if (audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
@@ -717,14 +969,19 @@
           if (typeof navigator.mediaSession.setPositionState === 'function') {
             try {
               navigator.mediaSession.setPositionState({
-                duration: videoDurationSeconds || audioEl.duration || 213,
-                playbackRate: audioEl.playbackRate || 1.0,
-                position: audioEl.currentTime
+                duration: Number(videoDurationSeconds || audioEl.duration || 213),
+                playbackRate: Number(audioEl.playbackRate || 1.0),
+                position: Number(audioEl.currentTime)
               });
             } catch (e) {}
           }
         }
-        if (!document.hidden && activeVideo) activeVideo.play().catch(() => {});
+        if (!document.hidden && activeVideo) {
+          if (Math.abs(activeVideo.currentTime - audioEl.currentTime) > 0.25) {
+            activeVideo.currentTime = audioEl.currentTime;
+          }
+          activeVideo.play().catch(() => {});
+        }
       } catch (e) {
         try {
           if (audioCtx) await audioCtx.resume().catch(() => {});
@@ -739,6 +996,7 @@
       const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
       const iconSvg = document.getElementById('play-pause-icon-svg');
       if (!audioEl) return;
+      isUserPaused = true;
       audioEl.pause();
       if (activeVideo) activeVideo.pause();
       if (iconSvg) iconSvg.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
@@ -757,6 +1015,7 @@
       const endedOverlay = document.getElementById('video-ended-overlay');
       if (endedOverlay) endedOverlay.style.display = 'none';
 
+      isUserPaused = false;
       if (audioEl) {
         audioEl.currentTime = targetTime;
         audioEl.play().catch(() => {});
@@ -776,11 +1035,6 @@
         return;
       }
 
-      if (isHandoffInProgress && typeof window.__forceAtomicSwap === 'function') {
-        logVerbose('[Fullscreen] Finalizing active ABR staging swap immediately during fullscreen transition.');
-        window.__forceAtomicSwap();
-      }
-
       isFsTransitionActive = true;
       lastViewTransitionTime = now;
 
@@ -791,6 +1045,8 @@
         return;
       }
 
+      const audioEl = document.getElementById('master-audio-element');
+      const shouldBePlaying = Boolean(audioEl && !audioEl.paused && !isUserPaused);
       const isCompositorFs = modal.classList.contains('compositor-fullscreen');
       const fsIcon = document.getElementById('fullscreen-icon-svg');
       const fsBtn = document.getElementById('fullscreen-btn-el');
@@ -814,24 +1070,39 @@
         logVerbose('[Fullscreen] Restored to normal viewport.');
       }
 
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          if (fullscreenRequestToken === currentToken) {
-            const audioEl = document.getElementById('master-audio-element');
-            const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
+      const assertContinuousPlayback = (isFinalCheck) => {
+        if (fullscreenRequestToken !== currentToken) return;
+        const currentAudio = document.getElementById('master-audio-element');
+        const currentVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
 
-            if (audioEl && activeVideo) {
-              if (!audioEl.paused && activeVideo.paused) {
-                activeVideo.play().catch((err) => {
-                  logVerbose(`[Fullscreen] Decoder resume warning: ${err.message}`, 'warn');
-                });
-              }
-            }
-            logVerbose('[Fullscreen] Video decoder clock and audio clock successfully synchronized.');
+        if (currentAudio && currentVideo && shouldBePlaying && !isUserPaused) {
+          if (Math.abs(currentVideo.currentTime - currentAudio.currentTime) > 0.25) {
+            currentVideo.currentTime = currentAudio.currentTime;
           }
+          if (currentVideo.paused) {
+            currentVideo.play().catch((err) => {
+              logVerbose(`[Fullscreen] Decoder resume warning: ${err.message}`, 'warn');
+            });
+          }
+          if (currentAudio.paused) {
+            currentAudio.play().catch(() => {});
+          }
+        }
+
+        if (isFinalCheck) {
+          logVerbose('[Fullscreen] Video decoder clock and audio clock successfully synchronized.');
           isFsTransitionActive = false;
-        }, 120);
-      });
+          if (pendingAbrSwapTarget !== null) {
+            const deferredTarget = pendingAbrSwapTarget;
+            pendingAbrSwapTarget = null;
+            autoUpgradeQuality(deferredTarget);
+          }
+        }
+      };
+
+      requestAnimationFrame(() => assertContinuousPlayback(false));
+      setTimeout(() => assertContinuousPlayback(false), 120);
+      setTimeout(() => assertContinuousPlayback(true), 380);
     }
 
     function startAudioSyncLoop() {
@@ -839,7 +1110,14 @@
       audioSyncInterval = setInterval(() => {
         const audioEl = document.getElementById('master-audio-element');
         const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
-        if (!audioEl || audioEl.paused) return;
+        if (!audioEl) return;
+
+        if (audioEl.paused && !isUserPaused && !document.hidden && audioEl.currentTime > 0) {
+          audioEl.play().catch(() => {});
+          if (activeVideo) activeVideo.play().catch(() => {});
+        }
+
+        if (audioEl.paused) return;
 
         if (audioEl.currentTime > 0 || (activeVideo && activeVideo.currentTime > 0)) hidePlayerLoader();
         if ('mediaSession' in navigator && navigator.mediaSession.playbackState !== 'playing') {
@@ -848,18 +1126,28 @@
 
         updateTimeAndProgress();
 
-        if (!document.hidden && activeVideo && !activeVideo.paused && !isHandoffInProgress) {
-          const drift = activeVideo.currentTime - audioEl.currentTime;
-          if (Math.abs(drift) > 0.05) {
-            if (Math.abs(drift) > 0.4) {
+        if (!document.hidden && activeVideo && !isHandoffInProgress) {
+          if (activeVideo.paused && !isUserPaused && activeVideo.readyState >= 2) {
+            if (Math.abs(activeVideo.currentTime - audioEl.currentTime) > 0.25) {
               activeVideo.currentTime = audioEl.currentTime;
-              activeVideo.playbackRate = 1.0;
-            } else {
-              const correction = 1.0 - (drift * 0.4);
-              activeVideo.playbackRate = Math.max(0.92, Math.min(1.08, correction));
             }
-          } else {
-            activeVideo.playbackRate = 1.0;
+            activeVideo.play().catch(() => {});
+            return;
+          }
+
+          if (!activeVideo.paused) {
+            const drift = activeVideo.currentTime - audioEl.currentTime;
+            if (Math.abs(drift) > 0.05) {
+              if (Math.abs(drift) > 0.4) {
+                activeVideo.currentTime = audioEl.currentTime;
+                activeVideo.playbackRate = 1.0;
+              } else {
+                const correction = 1.0 - (drift * 0.4);
+                activeVideo.playbackRate = Math.max(0.92, Math.min(1.08, correction));
+              }
+            } else {
+              activeVideo.playbackRate = 1.0;
+            }
           }
         }
       }, 100);
@@ -872,7 +1160,7 @@
         if (!audioEl || !activeVideo) return;
 
         if (document.visibilityState === 'visible') {
-          if (!audioEl.paused) {
+          if (!audioEl.paused && !isUserPaused) {
             isHandoffInProgress = false;
             requestAnimationFrame(async () => {
               try {
@@ -899,6 +1187,7 @@
         currentTime = duration;
         const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
         if (!audioEl.paused) {
+          isUserPaused = true;
           audioEl.pause();
           if (activeVideo) activeVideo.pause();
           if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
@@ -918,7 +1207,11 @@
         if (!audioEl.paused) navigator.mediaSession.playbackState = 'playing';
         if (typeof navigator.mediaSession.setPositionState === 'function' && duration > 0) {
           try {
-            navigator.mediaSession.setPositionState({ duration, playbackRate: audioEl.playbackRate || 1.0, position: Math.min(currentTime, duration) });
+            navigator.mediaSession.setPositionState({
+              duration: Number(duration),
+              playbackRate: Number(audioEl.playbackRate || 1.0),
+              position: Number(Math.min(currentTime, duration))
+            });
           } catch (e) {}
         }
       }
@@ -930,6 +1223,7 @@
       const endedOverlay = document.getElementById('video-ended-overlay');
       const iconSvg = document.getElementById('play-pause-icon-svg');
 
+      isUserPaused = false;
       if (endedOverlay) endedOverlay.style.display = 'none';
       if (audioEl) { audioEl.currentTime = 0; audioEl.play().catch(() => {}); }
       if (activeVideo) { activeVideo.currentTime = 0; activeVideo.play().catch(() => {}); }
@@ -957,6 +1251,8 @@
       currentQualityIndex = 0;
       activePlayerId = '1';
       isHandoffInProgress = false;
+      pendingAbrSwapTarget = null;
+      isUserPaused = false;
       fullscreenRequestToken++;
       isStagingPrewarmed = false;
       videoDurationSeconds = 0;
@@ -1040,6 +1336,7 @@
 
     async function initFrameLockedPlayback(audioFormat, videoFormat) {
       try {
+        ensureAudioContextGraph();
         let audioUrl = audioFormat.url.startsWith('http') ? audioFormat.url : `${proxyUrl}${audioFormat.url}`;
         if (audioUrl.includes('googlevideo.com')) {
           const u = new URL(audioUrl);
@@ -1088,17 +1385,22 @@
         activeVideo.currentTime = 0;
 
         if (audioCtx && audioCtx.state === 'suspended') await audioCtx.resume().catch(() => {});
-        await activeVideo.play();
-        await audioEl.play();
-
-        if ('mediaSession' in navigator) {
-          navigator.mediaSession.playbackState = 'playing';
-          if (typeof navigator.mediaSession.setPositionState === 'function') {
-            try {
-              navigator.mediaSession.setPositionState({ duration: videoDurationSeconds || audioEl.duration || 213, playbackRate: 1.0, position: 0 });
-            } catch (e) {}
-          }
+        
+        try {
+          await audioEl.play();
+        } catch (audioErr) {
+          logVerbose(`Audio init play warning: ${audioErr.message}`, 'warn');
+          setTimeout(() => { audioEl.play().catch(() => {}); }, 300);
         }
+
+        try {
+          await activeVideo.play();
+        } catch (videoErr) {
+          logVerbose(`Video init play warning: ${videoErr.message}`, 'warn');
+        }
+
+        // LIFECYCLE-BOUND MEDIA SESSION CONFIGURATION (v93 fix for greyed out controls)
+        setupActiveMediaSessionHandlers();
 
         hidePlayerLoader();
         startAudioSyncLoop();
@@ -1196,6 +1498,12 @@
       const audioEl = document.getElementById('master-audio-element');
       if (targetIndex === currentQualityIndex || isHandoffInProgress || document.hidden || (audioEl && audioEl.paused)) return;
 
+      if (isFsTransitionActive) {
+        pendingAbrSwapTarget = targetIndex;
+        logVerbose('[AutoABR] Deferring quality swap until fullscreen transition completes.');
+        return;
+      }
+
       const videoFormat = availableVideoFormats[targetIndex];
       if (!videoFormat) return;
 
@@ -1242,23 +1550,21 @@
         stagingVideo.className = 'pingpong-video active-player';
         activeVideo.className = 'pingpong-video staged-player';
         
-        requestAnimationFrame(() => {
-          setTimeout(() => {
-            activeVideo.pause();
-            activeVideo.removeAttribute('src');
-            activeVideo.load();
-          }, 150);
-        });
+        activeVideo.pause();
+        activeVideo.removeAttribute('src');
+        activeVideo.load();
 
         activePlayerId = stagingId;
         currentQualityIndex = targetIndex;
         isHandoffInProgress = false;
         isStagingPrewarmed = false;
 
+        if (audioEl && !audioEl.paused && !isUserPaused) {
+          stagingVideo.play().catch(() => {});
+        }
+
         logVerbose(`[ABR] Flash-Free Swap to ${targetHeight}p successful. Final Delta: ${((stagingVideo.currentTime - (audioEl ? audioEl.currentTime : initialLiveTime)) * 1000).toFixed(1)}ms.`);
       };
-
-      window.__forceAtomicSwap = executeAtomicSwap;
 
       const flashFreeSyncCheck = setInterval(() => {
         attempts++;
@@ -1539,53 +1845,77 @@
       } catch (err) { grid.innerHTML = '<p style="color: var(--text-secondary);">Search failed.</p>'; }
     }
 
-    function setupMediaSessionHandlers() {
+    function setupActiveMediaSessionHandlers() {
       try {
         if (navigator.audioSession) navigator.audioSession.type = 'playback';
         if ('mediaSession' in navigator) {
           navigator.mediaSession.setActionHandler('play', () => explicitPlayPlayback());
           navigator.mediaSession.setActionHandler('pause', () => explicitPausePlayback());
+
+          // Nullify track handlers to force WebKit to allocate slots to 10s skip buttons
+          navigator.mediaSession.setActionHandler('previoustrack', null);
+          navigator.mediaSession.setActionHandler('nexttrack', null);
+
+          // Explicitly supply 10s skip handlers with explicit seekOffset to prevent greyed-out states
           navigator.mediaSession.setActionHandler('seekbackward', (details) => {
-            const audioEl = document.getElementById('master-audio-element');
-            const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
-            const target = Math.max(0, audioEl.currentTime - (details.seekOffset || 10));
-            audioEl.currentTime = target;
-            if (activeVideo) activeVideo.currentTime = target;
-            updateTimeAndProgress();
+            const offset = details?.seekOffset || 10;
+            skipRelativeSeconds(-offset, false);
           });
           navigator.mediaSession.setActionHandler('seekforward', (details) => {
-            const audioEl = document.getElementById('master-audio-element');
-            const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
-            const duration = videoDurationSeconds || audioEl.duration || 213;
-            const target = Math.min(duration, audioEl.currentTime + (details.seekOffset || 10));
-            audioEl.currentTime = target;
-            if (activeVideo) activeVideo.currentTime = target;
-            updateTimeAndProgress();
+            const offset = details?.seekOffset || 10;
+            skipRelativeSeconds(offset, false);
           });
+
           navigator.mediaSession.setActionHandler('seekto', (details) => {
-            if (details.seekTime !== undefined) {
+            if (details && details.seekTime !== undefined) {
               const audioEl = document.getElementById('master-audio-element');
               const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
-              audioEl.currentTime = details.seekTime;
-              if (activeVideo) activeVideo.currentTime = details.seekTime;
-              updateTimeAndProgress();
+              if (audioEl) {
+                audioEl.currentTime = details.seekTime;
+                if (activeVideo) activeVideo.currentTime = details.seekTime;
+                audioEl.play().catch(() => {});
+                updateTimeAndProgress();
+              }
             }
           });
+
+          logVerbose('[MediaSession] Active 10s skip handlers bound successfully.');
         }
-      } catch (e) {}
+      } catch (e) {
+        logVerbose(`[MediaSession] Setup warning: ${e.message}`, 'warn');
+      }
     }
 
     function updateMediaSessionMetadata(title, channel, thumbnail) {
       if ('mediaSession' in navigator) {
-        navigator.mediaSession.metadata = new MediaMetadata({ title, artist: channel, album: 'ZenTube', artwork: [{ src: thumbnail, sizes: '512x512', type: 'image/jpeg' }] });
+        let cleanArtworkUrl = thumbnail;
+        if (!cleanArtworkUrl.startsWith('http')) {
+          cleanArtworkUrl = window.location.origin + '/' + cleanArtworkUrl.replace(/^\//, '');
+        }
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: title || 'ZenTube Video',
+          artist: channel || 'YouTube',
+          album: 'ZenTube Streams',
+          artwork: [
+            { src: cleanArtworkUrl, sizes: '96x96', type: 'image/jpeg' },
+            { src: cleanArtworkUrl, sizes: '128x128', type: 'image/jpeg' },
+            { src: cleanArtworkUrl, sizes: '192x192', type: 'image/jpeg' },
+            { src: cleanArtworkUrl, sizes: '256x256', type: 'image/jpeg' },
+            { src: cleanArtworkUrl, sizes: '384x384', type: 'image/jpeg' },
+            { src: cleanArtworkUrl, sizes: '512x512', type: 'image/jpeg' }
+          ]
+        });
         navigator.mediaSession.playbackState = 'playing';
       }
     }
 
     function closePlayer() {
+      isUserPaused = true;
       if (autoUpgradeTimer) { clearInterval(autoUpgradeTimer); autoUpgradeTimer = null; }
       if (prewarmTimeout) { clearTimeout(prewarmTimeout); prewarmTimeout = null; }
       if (audioSyncInterval) { clearInterval(audioSyncInterval); audioSyncInterval = null; }
+      if (singleTapTimer) { clearTimeout(singleTapTimer); singleTapTimer = null; }
+      if (seekFeedbackTimer) { clearTimeout(seekFeedbackTimer); seekFeedbackTimer = null; }
       hidePlayerLoader();
 
       const audioEl = document.getElementById('master-audio-element');
