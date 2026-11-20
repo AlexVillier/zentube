@@ -359,7 +359,7 @@
       <div class="logo-icon"></div>
       <div class="logo-text">
         ZenTube
-        <span id="header-version-display" style="font-size: 11px; font-weight: 400; color: var(--text-secondary);">v20261118-v95</span>
+        <span id="header-version-display" style="font-size: 11px; font-weight: 400; color: var(--text-secondary);">v1.11.1</span>
       </div>
     </div>
     <div class="header-actions">
@@ -400,7 +400,7 @@
       <div class="section-title">Settings & Configuration</div>
       <div class="settings-card">
         <label style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">Custom Stream Proxy URL (Invidious API Instance)</label>
-        <input type="text" id="proxy-url-input" class="input-field" placeholder="e.g. proxy.villier.org" />
+        <input type="text" id="proxy-url-input" class="input-field" placeholder="e.g. invidious.example.com" />
         <button class="save-btn" onclick="saveProxyUrl()">Save Proxy URL</button>
       </div>
 
@@ -572,7 +572,7 @@
   <script src="https://accounts.google.com/gsi/client?v=20261112" async defer onload="initGoogleAuth()"></script>
 
   <script>
-    const APP_BUILD_VERSION = '1.11.0';
+    const APP_BUILD_VERSION = '1.11.1';
     
     (function checkAppVersion() {
       const storedVersion = localStorage.getItem('zentube_app_version');
