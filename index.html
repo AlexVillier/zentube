@@ -359,7 +359,7 @@
       <div class="logo-icon"></div>
       <div class="logo-text">
         ZenTube
-        <span id="header-version-display" style="font-size: 11px; font-weight: 400; color: var(--text-secondary);">v1.11.1</span>
+        <span id="header-version-display" style="font-size: 11px; font-weight: 400; color: var(--text-secondary);">v1.11.2</span>
       </div>
     </div>
     <div class="header-actions">
@@ -572,7 +572,8 @@
   <script src="https://accounts.google.com/gsi/client?v=20261112" async defer onload="initGoogleAuth()"></script>
 
   <script>
-    const APP_BUILD_VERSION = '1.11.1';
+    const APP_BUILD_VERSION = '1.11.2';
+    const CONTROLS_AUTO_HIDE_MS = 3500;
     
     (function checkAppVersion() {
       const storedVersion = localStorage.getItem('zentube_app_version');
@@ -1124,20 +1125,48 @@
       return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
     }
 
-    function toggleCustomControls() {
+    function showCustomControls(autoHide = true) {
       const controls = document.getElementById('custom-controls');
-      controls.classList.toggle('hidden');
-      if (!controls.classList.contains('hidden')) resetControlsHideTimer();
+      if (!controls) return;
+      controls.classList.remove('hidden');
+      if (autoHide) {
+        resetControlsHideTimer();
+      } else if (controlsTimeout) {
+        clearTimeout(controlsTimeout);
+        controlsTimeout = null;
+      }
     }
 
-    function resetControlsHideTimer() {
+    function hideCustomControls() {
+      if (controlsTimeout) {
+        clearTimeout(controlsTimeout);
+        controlsTimeout = null;
+      }
+      const controls = document.getElementById('custom-controls');
+      if (controls) controls.classList.add('hidden');
+    }
+
+    function toggleCustomControls() {
+      const controls = document.getElementById('custom-controls');
+      if (!controls) return;
+      if (controls.classList.contains('hidden')) {
+        showCustomControls(true);
+      } else {
+        hideCustomControls();
+      }
+    }
+
+    function resetControlsHideTimer(delayMs = CONTROLS_AUTO_HIDE_MS) {
       if (controlsTimeout) clearTimeout(controlsTimeout);
       const audioEl = document.getElementById('master-audio-element');
-      if (audioEl && !audioEl.paused) {
+      if (audioEl && !audioEl.paused && !isUserPaused) {
         controlsTimeout = setTimeout(() => {
+          const currentAudio = document.getElementById('master-audio-element');
           const controls = document.getElementById('custom-controls');
-          if (controls) controls.classList.add('hidden');
-        }, 3500);
+          if (controls && currentAudio && !currentAudio.paused && !isUserPaused) {
+            controls.classList.add('hidden');
+          }
+        }, delayMs);
       }
     }
 
@@ -1165,7 +1194,7 @@
 
       saveVideoProgress(currentVideoId, targetTime, duration);
       updateTimeAndProgress();
-      resetControlsHideTimer();
+      showCustomControls(true);
 
       if (showBadge) {
         triggerSeekFeedbackBadge(deltaSeconds);
@@ -1253,6 +1282,8 @@
 
       if (!audioEl.paused) {
         isUserPaused = true;
+        if (controlsTimeout) { clearTimeout(controlsTimeout); controlsTimeout = null; }
+        showCustomControls(false);
         audioEl.pause();
         activeVideo.pause();
         saveVideoProgress(currentVideoId, audioEl.currentTime, videoDurationSeconds || audioEl.duration);
@@ -1268,8 +1299,8 @@
         activeVideo.play().catch(() => {});
         if (iconSvg) iconSvg.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+        showCustomControls(true);
       }
-      resetControlsHideTimer();
     }
 
     async function explicitPlayPlayback() {
@@ -1309,7 +1340,7 @@
           await audioEl.play();
         } catch (innerErr) {}
       }
-      resetControlsHideTimer();
+      showCustomControls(true);
     }
 
     function explicitPausePlayback() {
@@ -1318,6 +1349,8 @@
       const iconSvg = document.getElementById('play-pause-icon-svg');
       if (!audioEl) return;
       isUserPaused = true;
+      if (controlsTimeout) { clearTimeout(controlsTimeout); controlsTimeout = null; }
+      showCustomControls(false);
       audioEl.pause();
       if (activeVideo) activeVideo.pause();
       saveVideoProgress(currentVideoId, audioEl.currentTime, videoDurationSeconds || audioEl.duration);
@@ -1348,7 +1381,7 @@
       }
       saveVideoProgress(currentVideoId, targetTime, duration);
       updateTimeAndProgress();
-      resetControlsHideTimer();
+      showCustomControls(true);
     }
 
     function toggleFullscreen() {
@@ -1391,6 +1424,10 @@
         if (fsIcon) fsIcon.innerHTML = '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>';
         if (fsBtn) fsBtn.title = 'Fullscreen';
         logVerbose('[Fullscreen] Restored to normal viewport.');
+      }
+
+      if (shouldBePlaying) {
+        showCustomControls(true);
       }
 
       const assertContinuousPlayback = (isFinalCheck) => {
@@ -1503,6 +1540,7 @@
                 await activeVideo.play();
                 await audioEl.play();
                 if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+                resetControlsHideTimer();
               } catch (e) {}
             });
           }
@@ -1521,6 +1559,8 @@
         const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
         if (!audioEl.paused) {
           isUserPaused = true;
+          if (controlsTimeout) { clearTimeout(controlsTimeout); controlsTimeout = null; }
+          showCustomControls(false);
           audioEl.pause();
           if (activeVideo) activeVideo.pause();
           saveVideoProgress(currentVideoId, duration, duration);
@@ -1563,6 +1603,7 @@
       if (activeVideo) { activeVideo.currentTime = 0; activeVideo.play().catch(() => {}); }
       if (iconSvg) iconSvg.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
       if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+      showCustomControls(true);
     }
 
     function getFormatHeight(f) {
@@ -1594,6 +1635,7 @@
       const endedOverlay = document.getElementById('video-ended-overlay');
       if (endedOverlay) endedOverlay.style.display = 'none';
 
+      showCustomControls(false);
       showPlayerLoader('Loading video stream...');
 
       if (autoUpgradeTimer) { clearInterval(autoUpgradeTimer); autoUpgradeTimer = null; }
@@ -1751,6 +1793,7 @@
         setupActiveMediaSessionHandlers();
 
         hidePlayerLoader();
+        showCustomControls(true);
         startAudioSyncLoop();
         logVerbose(`Playback active (Stutter-Free, Video: ${getFormatHeight(videoFormat)}p)`);
 
@@ -2286,6 +2329,7 @@
       }
 
       isUserPaused = true;
+      if (controlsTimeout) { clearTimeout(controlsTimeout); controlsTimeout = null; }
       if (autoUpgradeTimer) { clearInterval(autoUpgradeTimer); autoUpgradeTimer = null; }
       if (prewarmTimeout) { clearTimeout(prewarmTimeout); prewarmTimeout = null; }
       if (audioSyncInterval) { clearInterval(audioSyncInterval); audioSyncInterval = null; }
