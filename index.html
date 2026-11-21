@@ -359,7 +359,7 @@
       <div class="logo-icon"></div>
       <div class="logo-text">
         ZenTube
-        <span id="header-version-display" style="font-size: 11px; font-weight: 400; color: var(--text-secondary);">v1.11.2</span>
+        <span id="header-version-display" style="font-size: 11px; font-weight: 400; color: var(--text-secondary);">v1.11.3</span>
       </div>
     </div>
     <div class="header-actions">
@@ -572,7 +572,7 @@
   <script src="https://accounts.google.com/gsi/client?v=20261112" async defer onload="initGoogleAuth()"></script>
 
   <script>
-    const APP_BUILD_VERSION = '1.11.2';
+    const APP_BUILD_VERSION = '1.11.3';
     const CONTROLS_AUTO_HIDE_MS = 3500;
     
     (function checkAppVersion() {
@@ -640,6 +640,7 @@
     let pendingAbrSwapTarget = null;
     let fullscreenRequestToken = 0;
     let isUserPaused = false;
+    let screenWakeLock = null;
     
     let lastViewTransitionTime = 0;
     const VIEW_TRANSITION_COOLDOWN_MS = 300;
@@ -663,6 +664,35 @@
     let audioCtx = null;
     let audioSourceNode = null;
     let isAudioGraphConnected = false;
+
+    async function requestScreenWakeLock() {
+      if (!('wakeLock' in navigator) || document.hidden || isUserPaused) return;
+      const audioEl = document.getElementById('master-audio-element');
+      if (!audioEl || audioEl.paused) return;
+
+      try {
+        if (screenWakeLock && !screenWakeLock.released) return;
+        screenWakeLock = await navigator.wakeLock.request('screen');
+        logVerbose('[WakeLock] Screen wake lock acquired.');
+        screenWakeLock.addEventListener('release', () => {
+          logVerbose('[WakeLock] Screen wake lock released.');
+          screenWakeLock = null;
+        });
+      } catch (err) {
+        logVerbose(`[WakeLock] Could not acquire screen wake lock: ${err.message}`, 'warn');
+      }
+    }
+
+    async function releaseScreenWakeLock() {
+      if (!screenWakeLock) return;
+      try {
+        await screenWakeLock.release();
+      } catch (err) {
+        logVerbose(`[WakeLock] Release warning: ${err.message}`, 'warn');
+      } finally {
+        screenWakeLock = null;
+      }
+    }
 
     function ensureAudioContextGraph() {
       try {
@@ -1195,6 +1225,7 @@
       saveVideoProgress(currentVideoId, targetTime, duration);
       updateTimeAndProgress();
       showCustomControls(true);
+      requestScreenWakeLock();
 
       if (showBadge) {
         triggerSeekFeedbackBadge(deltaSeconds);
@@ -1286,6 +1317,7 @@
         showCustomControls(false);
         audioEl.pause();
         activeVideo.pause();
+        releaseScreenWakeLock();
         saveVideoProgress(currentVideoId, audioEl.currentTime, videoDurationSeconds || audioEl.duration);
         if (iconSvg) iconSvg.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
@@ -1297,6 +1329,7 @@
           activeVideo.currentTime = audioEl.currentTime;
         }
         activeVideo.play().catch(() => {});
+        requestScreenWakeLock();
         if (iconSvg) iconSvg.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
         if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
         showCustomControls(true);
@@ -1334,10 +1367,12 @@
           }
           activeVideo.play().catch(() => {});
         }
+        requestScreenWakeLock();
       } catch (e) {
         try {
           if (audioCtx) await audioCtx.resume().catch(() => {});
           await audioEl.play();
+          requestScreenWakeLock();
         } catch (innerErr) {}
       }
       showCustomControls(true);
@@ -1353,6 +1388,7 @@
       showCustomControls(false);
       audioEl.pause();
       if (activeVideo) activeVideo.pause();
+      releaseScreenWakeLock();
       saveVideoProgress(currentVideoId, audioEl.currentTime, videoDurationSeconds || audioEl.duration);
       if (iconSvg) iconSvg.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
       if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
@@ -1379,6 +1415,7 @@
         activeVideo.currentTime = targetTime;
         activeVideo.play().catch(() => {});
       }
+      requestScreenWakeLock();
       saveVideoProgress(currentVideoId, targetTime, duration);
       updateTimeAndProgress();
       showCustomControls(true);
@@ -1428,6 +1465,7 @@
 
       if (shouldBePlaying) {
         showCustomControls(true);
+        requestScreenWakeLock();
       }
 
       const assertContinuousPlayback = (isFinalCheck) => {
@@ -1525,8 +1563,11 @@
         const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
         if (!audioEl || !activeVideo) return;
 
-        if (document.visibilityState === 'hidden' && currentVideoId && audioEl.currentTime > 0) {
-          saveVideoProgress(currentVideoId, audioEl.currentTime, videoDurationSeconds || audioEl.duration);
+        if (document.visibilityState === 'hidden') {
+          if (currentVideoId && audioEl.currentTime > 0) {
+            saveVideoProgress(currentVideoId, audioEl.currentTime, videoDurationSeconds || audioEl.duration);
+          }
+          screenWakeLock = null;
         }
 
         if (document.visibilityState === 'visible') {
@@ -1539,6 +1580,7 @@
                 activeVideo.playbackRate = 1.0;
                 await activeVideo.play();
                 await audioEl.play();
+                await requestScreenWakeLock();
                 if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
                 resetControlsHideTimer();
               } catch (e) {}
@@ -1563,6 +1605,7 @@
           showCustomControls(false);
           audioEl.pause();
           if (activeVideo) activeVideo.pause();
+          releaseScreenWakeLock();
           saveVideoProgress(currentVideoId, duration, duration);
           if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
           const iconSvg = document.getElementById('play-pause-icon-svg');
@@ -1601,6 +1644,7 @@
       if (endedOverlay) endedOverlay.style.display = 'none';
       if (audioEl) { audioEl.currentTime = 0; audioEl.play().catch(() => {}); }
       if (activeVideo) { activeVideo.currentTime = 0; activeVideo.play().catch(() => {}); }
+      requestScreenWakeLock();
       if (iconSvg) iconSvg.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
       if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
       showCustomControls(true);
@@ -1790,6 +1834,7 @@
           logVerbose(`Video init play warning: ${videoErr.message}`, 'warn');
         }
 
+        await requestScreenWakeLock();
         setupActiveMediaSessionHandlers();
 
         hidePlayerLoader();
@@ -2329,6 +2374,7 @@
       }
 
       isUserPaused = true;
+      releaseScreenWakeLock();
       if (controlsTimeout) { clearTimeout(controlsTimeout); controlsTimeout = null; }
       if (autoUpgradeTimer) { clearInterval(autoUpgradeTimer); autoUpgradeTimer = null; }
       if (prewarmTimeout) { clearTimeout(prewarmTimeout); prewarmTimeout = null; }
