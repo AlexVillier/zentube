@@ -234,6 +234,23 @@
       stroke-linejoin: round;
     }
 
+    #video-ended-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9;
+      gap: 12px;
+      color: #fff;
+      backdrop-filter: blur(4px);
+    }
+
     .custom-controls-overlay {
       position: absolute;
       bottom: 0; left: 0; width: 100%;
@@ -359,7 +376,7 @@
       <div class="logo-icon"></div>
       <div class="logo-text">
         ZenTube
-        <span id="header-version-display" style="font-size: 11px; font-weight: 400; color: var(--text-secondary);">v1.11.3</span>
+        <span id="header-version-display" style="font-size: 11px; font-weight: 400; color: var(--text-secondary);">v1.11.5</span>
       </div>
     </div>
     <div class="header-actions">
@@ -499,7 +516,7 @@
       <video id="pingpong-video-2" class="pingpong-video staged-player" muted playsinline webkit-playsinline x-webkit-airplay="allow" crossorigin="anonymous" preload="auto"></video>
       <audio id="master-audio-element" crossorigin="anonymous" preload="auto" style="display:none;"></audio>
 
-      <div id="video-ended-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 15; gap: 12px; color: #fff; backdrop-filter: blur(4px);">
+      <div id="video-ended-overlay" onclick="event.stopPropagation()">
         <div style="font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
           <svg viewBox="0 0 24 24" style="width: 20px; height: 20px; stroke: var(--success-color); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
           Video Finished
@@ -572,7 +589,7 @@
   <script src="https://accounts.google.com/gsi/client?v=20261112" async defer onload="initGoogleAuth()"></script>
 
   <script>
-    const APP_BUILD_VERSION = '1.11.3';
+    const APP_BUILD_VERSION = '1.11.4';
     const CONTROLS_AUTO_HIDE_MS = 3500;
     
     (function checkAppVersion() {
@@ -1155,11 +1172,16 @@
       return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
     }
 
+    function isVideoEndedOverlayVisible() {
+      const endedOverlay = document.getElementById('video-ended-overlay');
+      return Boolean(endedOverlay && endedOverlay.style.display === 'flex');
+    }
+
     function showCustomControls(autoHide = true) {
       const controls = document.getElementById('custom-controls');
       if (!controls) return;
       controls.classList.remove('hidden');
-      if (autoHide) {
+      if (autoHide && !isVideoEndedOverlayVisible()) {
         resetControlsHideTimer();
       } else if (controlsTimeout) {
         clearTimeout(controlsTimeout);
@@ -1177,6 +1199,10 @@
     }
 
     function toggleCustomControls() {
+      if (isVideoEndedOverlayVisible()) {
+        showCustomControls(false);
+        return;
+      }
       const controls = document.getElementById('custom-controls');
       if (!controls) return;
       if (controls.classList.contains('hidden')) {
@@ -1188,12 +1214,13 @@
 
     function resetControlsHideTimer(delayMs = CONTROLS_AUTO_HIDE_MS) {
       if (controlsTimeout) clearTimeout(controlsTimeout);
+      if (isVideoEndedOverlayVisible()) return;
       const audioEl = document.getElementById('master-audio-element');
       if (audioEl && !audioEl.paused && !isUserPaused) {
         controlsTimeout = setTimeout(() => {
           const currentAudio = document.getElementById('master-audio-element');
           const controls = document.getElementById('custom-controls');
-          if (controls && currentAudio && !currentAudio.paused && !isUserPaused) {
+          if (controls && currentAudio && !currentAudio.paused && !isUserPaused && !isVideoEndedOverlayVisible()) {
             controls.classList.add('hidden');
           }
         }, delayMs);
@@ -1463,7 +1490,9 @@
         logVerbose('[Fullscreen] Restored to normal viewport.');
       }
 
-      if (shouldBePlaying) {
+      if (isVideoEndedOverlayVisible()) {
+        showCustomControls(false);
+      } else if (shouldBePlaying) {
         showCustomControls(true);
         requestScreenWakeLock();
       }
@@ -1602,7 +1631,6 @@
         if (!audioEl.paused) {
           isUserPaused = true;
           if (controlsTimeout) { clearTimeout(controlsTimeout); controlsTimeout = null; }
-          showCustomControls(false);
           audioEl.pause();
           if (activeVideo) activeVideo.pause();
           releaseScreenWakeLock();
@@ -1612,6 +1640,7 @@
           if (iconSvg) iconSvg.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
           const endedOverlay = document.getElementById('video-ended-overlay');
           if (endedOverlay) endedOverlay.style.display = 'flex';
+          showCustomControls(false);
         }
       }
 
