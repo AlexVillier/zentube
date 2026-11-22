@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>ZenTube - Stutter-Free ABR Player</title>
   
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="ZenTube" />
   <meta name="theme-color" content="#17171a" />
 
@@ -22,6 +22,7 @@
       --success-color: #30d158;
       --nav-height: 86px;
       --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; user-select: none; }
@@ -29,27 +30,30 @@
     html, body {
       width: 100%;
       height: 100vh;
-      height: 100lvh;
+      height: 100dvh;
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      background-color: var(--bg-surface);
+      background-color: var(--bg-primary);
       color: var(--text-primary);
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
     }
 
     header {
-      flex-shrink: 0;
+      position: fixed;
+      top: 0;
+      left: 0;
       width: 100%;
       z-index: 90;
-      background: rgba(23, 23, 26, 0.95);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
+      background: var(--bg-surface);
+      background-color: #17171a;
       border-bottom: 1px solid var(--border-color);
       padding: calc(var(--safe-top) + 8px) 16px 10px 16px;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      transform: translateZ(0);
+      -webkit-font-smoothing: antialiased;
     }
 
     .logo-container { display: flex; align-items: center; gap: 8px; }
@@ -64,12 +68,13 @@
 
     main {
       flex: 1;
+      min-height: 0;
       width: 100%;
       max-width: 800px;
       margin: 0 auto;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
-      padding: 16px;
+      padding: calc(var(--safe-top) + 72px) 16px 16px 16px;
       background-color: var(--bg-primary);
     }
 
@@ -183,7 +188,7 @@
       aspect-ratio: unset !important;
     }
     .player-modal.compositor-fullscreen .custom-controls-overlay {
-      padding-bottom: calc(env(safe-area-inset-bottom, 16px) + 12px);
+      padding-bottom: calc(var(--safe-bottom) + 12px);
     }
     
     .pingpong-video {
@@ -286,27 +291,30 @@
     .log-entry.error { color: #ff453a; }
     .log-entry.warn { color: #ffd60a; }
 
-    .player-modal.docked { top: auto; bottom: calc(var(--nav-height) + 10px); right: 12px; width: calc(100% - 24px); max-width: 360px; height: auto; max-height: 320px; border-radius: 16px; border: 1px solid var(--border-color); box-shadow: 0 10px 30px rgba(0,0,0,0.8); background: var(--bg-surface); overflow: hidden; }
+    .player-modal.docked { top: auto; bottom: calc(var(--nav-height) + var(--safe-bottom) + 10px); right: 12px; width: calc(100% - 24px); max-width: 360px; height: auto; max-height: 320px; border-radius: 16px; border: 1px solid var(--border-color); box-shadow: 0 10px 30px rgba(0,0,0,0.8); background: var(--bg-surface); overflow: hidden; }
     .player-modal.docked .player-header { padding: 8px 12px; }
     .player-modal.docked .player-details { display: none; }
 
     .channel-detail-view { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-primary); z-index: 500; display: none; flex-direction: column; padding-top: var(--safe-top); }
     .channel-detail-view.active { display: flex; }
     .channel-detail-header { padding: 16px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border-color); }
+    .channel-detail-scroll { padding: 16px; overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1; }
+    .channel-detail-inner { max-width: 800px; margin: 0 auto; width: 100%; }
 
     nav.bottom-nav {
       flex-shrink: 0;
       width: 100%;
       height: var(--nav-height);
-      background: rgba(23, 23, 26, 0.95);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
+      background: var(--bg-surface);
+      background-color: #17171a;
       border-top: 1px solid var(--border-color);
       display: flex;
       justify-content: space-around;
       align-items: center;
-      padding: 10px 0 40px 0;
+      padding: 10px 0 max(var(--safe-bottom), 24px) 0;
       z-index: 100;
+      transform: translateZ(0);
+      -webkit-font-smoothing: antialiased;
     }
     .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 11px; gap: 4px; cursor: pointer; width: 25%; height: 100%; }
     .nav-item.active { color: var(--text-primary); }
@@ -341,7 +349,7 @@
     .toggle-switch input:checked + .toggle-slider:before { transform: translateX(22px); background-color: #ffffff; }
 
     .toast-container {
-      position: fixed; bottom: calc(var(--nav-height) + 16px); left: 50%; transform: translateX(-50%) translateY(20px);
+      position: fixed; bottom: calc(var(--nav-height) + var(--safe-bottom) + 16px); left: 50%; transform: translateX(-50%) translateY(20px);
       background: var(--bg-surface-elevated); color: var(--text-primary); border: 1px solid var(--border-color);
       padding: 10px 20px; border-radius: 20px; font-size: 13px; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
       z-index: 2000; opacity: 0; pointer-events: none; transition: opacity 0.3s ease, transform 0.3s ease;
@@ -376,7 +384,7 @@
       <div class="logo-icon"></div>
       <div class="logo-text">
         ZenTube
-        <span id="header-version-display" style="font-size: 11px; font-weight: 400; color: var(--text-secondary);">v1.11.5</span>
+        <span id="header-version-display" style="font-size: 11px; font-weight: 400; color: var(--text-secondary);">v1.11.13</span>
       </div>
     </div>
     <div class="header-actions">
@@ -479,8 +487,11 @@
         </div>
       </div>
     </div>
-    <div style="padding: 16px; overflow-y: auto; flex: 1;">
-      <div class="video-grid" id="channel-videos-grid"></div>
+    <div class="channel-detail-scroll" id="channel-detail-scroll-container">
+      <div class="channel-detail-inner">
+        <div class="video-grid" id="channel-videos-grid"></div>
+        <div class="feed-loader" id="channel-feed-loader">Loading more videos...</div>
+      </div>
     </div>
   </div>
 
@@ -589,7 +600,7 @@
   <script src="https://accounts.google.com/gsi/client?v=20261112" async defer onload="initGoogleAuth()"></script>
 
   <script>
-    const APP_BUILD_VERSION = '1.11.4';
+    const APP_BUILD_VERSION = '1.11.5';
     const CONTROLS_AUTO_HIDE_MS = 3500;
     
     (function checkAppVersion() {
@@ -737,6 +748,14 @@
     let isFetchingMore = false;
     let audioSyncInterval = null;
 
+    // Channel detail pagination state
+    let channelVideoPool = [];
+    let channelSeenVideoIds = new Set();
+    let displayedChannelVideoCount = 0;
+    let channelUploadsPlaylistId = null;
+    let channelNextPageToken = '';
+    let isFetchingMoreChannel = false;
+
     const demoVideos = [
       { id: 'dQw4w9WgXcQ', title: 'Rick Astley - Never Gonna Give You Up', channel: 'Rick Astley', duration: 213, thumbnail: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg', publishedAt: new Date() }
     ];
@@ -755,6 +774,7 @@
       setupMasterAudioSeekGuards();
       setupVisibilityHandler();
       setupInfiniteScroll();
+      setupChannelInfiniteScroll();
       setupViewTransitionListeners();
       setupAutoLandscapeFullscreen();
 
@@ -1130,6 +1150,104 @@
         isFetchingMore = false;
         if (loader) loader.classList.remove('active');
       }, 300);
+    }
+
+    function setupChannelInfiniteScroll() {
+      const channelScrollContainer = document.getElementById('channel-detail-scroll-container');
+      if (!channelScrollContainer) return;
+      channelScrollContainer.addEventListener('scroll', () => {
+        const detailView = document.getElementById('channel-detail-view');
+        if (!detailView || !detailView.classList.contains('active')) return;
+        const scrollPosition = channelScrollContainer.scrollTop + channelScrollContainer.clientHeight;
+        const threshold = channelScrollContainer.scrollHeight - 500;
+        if (scrollPosition >= threshold && !isFetchingMoreChannel) {
+          loadMoreChannelVideos();
+        }
+      });
+    }
+
+    function parsePlaylistItems(items) {
+      if (!Array.isArray(items)) return [];
+      const parsed = [];
+      items.forEach(item => {
+        const snippet = item.snippet;
+        const videoId = snippet?.resourceId?.videoId;
+        if (!videoId || snippet.title === 'Deleted video' || snippet.title === 'Private video') return;
+        if (channelSeenVideoIds.has(videoId)) return;
+        channelSeenVideoIds.add(videoId);
+
+        const thumb = snippet.thumbnails || {};
+        const bestThumb = thumb.maxres?.url || thumb.standard?.url || thumb.high?.url || thumb.medium?.url || thumb.default?.url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+        parsed.push({
+          id: videoId,
+          title: snippet.title,
+          channel: snippet.channelTitle,
+          thumbnail: bestThumb
+        });
+      });
+      return parsed;
+    }
+
+    async function fetchChannelPlaylistPage(playlistId, pageToken = '') {
+      if (!accessToken || !playlistId) return { videos: [], nextPageToken: '' };
+      let url = `https://www.googleapis.com/youtube/v3/playlistItems?playlistId=${playlistId}&part=snippet&maxResults=25`;
+      if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+      if (!res.ok) throw new Error(`Playlist API returned HTTP ${res.status}`);
+      const data = await res.json();
+      return {
+        videos: parsePlaylistItems(data.items),
+        nextPageToken: data.nextPageToken || ''
+      };
+    }
+
+    async function loadMoreChannelVideos() {
+      if (isFetchingMoreChannel) return;
+
+      const loader = document.getElementById('channel-feed-loader');
+
+      if (displayedChannelVideoCount < channelVideoPool.length) {
+        isFetchingMoreChannel = true;
+        if (loader) loader.classList.add('active');
+
+        setTimeout(() => {
+          const nextBatchEnd = Math.min(displayedChannelVideoCount + PAGE_SIZE, channelVideoPool.length);
+          const nextBatch = channelVideoPool.slice(displayedChannelVideoCount, nextBatchEnd);
+          appendFeedBatch(nextBatch, 'channel-videos-grid');
+          displayedChannelVideoCount = nextBatchEnd;
+          isFetchingMoreChannel = false;
+
+          const hasMore = displayedChannelVideoCount < channelVideoPool.length || Boolean(channelNextPageToken);
+          if (loader) loader.classList.toggle('active', hasMore);
+        }, 200);
+        return;
+      }
+
+      if (!channelNextPageToken || !channelUploadsPlaylistId) {
+        if (loader) loader.classList.remove('active');
+        return;
+      }
+
+      isFetchingMoreChannel = true;
+      if (loader) loader.classList.add('active');
+
+      try {
+        const page = await fetchChannelPlaylistPage(channelUploadsPlaylistId, channelNextPageToken);
+        channelNextPageToken = page.nextPageToken;
+        if (page.videos.length > 0) {
+          channelVideoPool = channelVideoPool.concat(page.videos);
+          const nextBatchEnd = Math.min(displayedChannelVideoCount + PAGE_SIZE, channelVideoPool.length);
+          const nextBatch = channelVideoPool.slice(displayedChannelVideoCount, nextBatchEnd);
+          appendFeedBatch(nextBatch, 'channel-videos-grid');
+          displayedChannelVideoCount = nextBatchEnd;
+        }
+      } catch (err) {
+        logVerbose(`[ChannelScroll] Failed to load more channel videos: ${err.message}`, 'warn');
+      } finally {
+        isFetchingMoreChannel = false;
+        const hasMore = displayedChannelVideoCount < channelVideoPool.length || Boolean(channelNextPageToken);
+        if (loader) loader.classList.toggle('active', hasMore);
+      }
     }
 
     function saveDebugMode(isChecked) {
@@ -2290,30 +2408,55 @@
       document.getElementById('channel-detail-name').textContent = channelTitle;
       document.getElementById('channel-detail-avatar').src = avatarUrl;
       const grid = document.getElementById('channel-videos-grid');
-      grid.innerHTML = '<p style="color: var(--text-secondary);">Loading channel videos...</p>';
+      const scrollContainer = document.getElementById('channel-detail-scroll-container');
+      const loader = document.getElementById('channel-feed-loader');
+
+      channelVideoPool = [];
+      channelSeenVideoIds = new Set();
+      displayedChannelVideoCount = 0;
+      channelUploadsPlaylistId = null;
+      channelNextPageToken = '';
+      isFetchingMoreChannel = false;
+
+      if (scrollContainer) scrollContainer.scrollTop = 0;
+      if (loader) loader.classList.remove('active');
+
+      renderFeedSkeleton('channel-videos-grid', 6);
       document.getElementById('channel-detail-view').classList.add('active');
+
       try {
         const channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?id=${channelId}&part=contentDetails`, { headers: { Authorization: `Bearer ${accessToken}` } });
         const channelData = await channelRes.json();
         if (channelData.items && channelData.items.length > 0) {
-          const uploadsPlaylistId = channelData.items[0].contentDetails.relatedPlaylists.uploads;
-          const playlistRes = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?playlistId=${uploadsPlaylistId}&part=snippet&maxResults=15`, { headers: { Authorization: `Bearer ${accessToken}` } });
-          const playlistData = await playlistRes.json();
-          if (playlistData.items) {
-            const videos = playlistData.items
-              .filter(item => item.snippet?.resourceId?.videoId && item.snippet.title !== 'Deleted video' && item.snippet.title !== 'Private video')
-              .map(item => {
-                const thumb = item.snippet.thumbnails || {};
-                const bestThumb = thumb.maxres?.url || thumb.standard?.url || thumb.high?.url || thumb.medium?.url || thumb.default?.url || `https://i.ytimg.com/vi/${item.snippet.resourceId.videoId}/hqdefault.jpg`;
-                return { id: item.snippet.resourceId.videoId, title: item.snippet.title, channel: item.snippet.channelTitle, thumbnail: bestThumb };
-              });
-            renderFeedInitial(videos, 'channel-videos-grid');
+          channelUploadsPlaylistId = channelData.items[0].contentDetails?.relatedPlaylists?.uploads || null;
+          if (channelUploadsPlaylistId) {
+            const page = await fetchChannelPlaylistPage(channelUploadsPlaylistId, '');
+            channelNextPageToken = page.nextPageToken;
+            channelVideoPool = page.videos;
+
+            grid.innerHTML = '';
+            displayedChannelVideoCount = Math.min(PAGE_SIZE, channelVideoPool.length);
+            appendFeedBatch(channelVideoPool.slice(0, displayedChannelVideoCount), 'channel-videos-grid');
+
+            const hasMore = displayedChannelVideoCount < channelVideoPool.length || Boolean(channelNextPageToken);
+            if (loader) loader.classList.toggle('active', hasMore);
+
+            if (scrollContainer && hasMore && scrollContainer.scrollHeight <= scrollContainer.clientHeight + 200) {
+              loadMoreChannelVideos();
+            }
           }
         }
-      } catch (err) { grid.innerHTML = '<p style="color: var(--text-secondary);">Unable to load channel uploads.</p>'; }
+      } catch (err) {
+        grid.innerHTML = '<p style="color: var(--text-secondary);">Unable to load channel uploads.</p>';
+      }
     }
 
-    function closeChannelDetail() { document.getElementById('channel-detail-view').classList.remove('active'); }
+    function closeChannelDetail() {
+      const loader = document.getElementById('channel-feed-loader');
+      if (loader) loader.classList.remove('active');
+      isFetchingMoreChannel = false;
+      document.getElementById('channel-detail-view').classList.remove('active');
+    }
 
     async function executeSearch() {
       const query = document.getElementById('search-input').value.trim();
