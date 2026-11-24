@@ -9,6 +9,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="ZenTube" />
   <meta name="theme-color" content="#17171a" />
+  <link rel="icon" type="image/x-icon" href="./favicon.ico?v=1.11.24" />
+  <link rel="icon" type="image/png" sizes="180x180" href="./favicon.png?v=1.11.24" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=1.11.24" />
 
   <style>
     :root {
@@ -57,8 +60,19 @@
     }
 
     .logo-container { display: flex; align-items: center; gap: 8px; }
-    .logo-icon { width: 24px; height: 24px; background-color: var(--accent-color); border-radius: 6px; display: flex; align-items: center; justify-content: center; }
-    .logo-icon::after { content: ''; border-style: solid; border-width: 5px 0 5px 9px; border-color: transparent transparent transparent #ffffff; margin-left: 2px; }
+    .logo-icon {
+      width: 28px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .logo-icon svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
     .logo-text { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; display: flex; align-items: baseline; gap: 6px; }
 
     .header-actions { display: flex; align-items: center; gap: 10px; }
@@ -414,10 +428,15 @@
 
   <header>
     <div class="logo-container">
-      <div class="logo-icon"></div>
+      <div class="logo-icon">
+        <svg viewBox="0 0 36 28" aria-hidden="true">
+          <rect x="1" y="1" width="34" height="26" rx="7" fill="#ffffff" />
+          <path d="M12.5 8.5H23.5L13.5 19.5H23.5" fill="none" stroke="#0d0d0e" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </div>
       <div class="logo-text">
         ZenTube
-        <span id="header-version-display" style="font-size: 11px; font-weight: 400; color: var(--text-secondary);">v1.11.23</span>
+        <span id="header-version-display" style="font-size: 11px; font-weight: 400; color: var(--text-secondary);">v1.11.24</span>
       </div>
     </div>
     <div class="header-actions">
@@ -683,7 +702,7 @@
   <script src="https://accounts.google.com/gsi/client?v=20261112" async defer onload="initGoogleAuth()"></script>
 
   <script>
-    const APP_BUILD_VERSION = '1.11.7';
+    const APP_BUILD_VERSION = '1.11.24';
     const CONTROLS_AUTO_HIDE_MS = 3500;
     
     (function checkAppVersion() {
@@ -775,7 +794,6 @@
     let lastHardSnapTime = 0;
     const HARD_SNAP_COOLDOWN_MS = 3000;
 
-    // Individual tab scroll tracking
     const tabScrollPositions = {
       'feed-view': 0,
       'channels-view': 0,
@@ -2799,4 +2817,3 @@
   </script>
 </body>
 </html>
-
