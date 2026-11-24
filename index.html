@@ -190,6 +190,23 @@
     .player-modal.compositor-fullscreen .custom-controls-overlay {
       padding-bottom: calc(var(--safe-bottom) + 12px);
     }
+
+    .fullscreen-title-bar {
+      display: none;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      line-height: 1.3;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+      margin-bottom: 2px;
+    }
+
+    .player-modal.compositor-fullscreen .custom-controls-overlay:not(.hidden) .fullscreen-title-bar {
+      display: block;
+    }
     
     .pingpong-video {
       position: absolute;
@@ -325,7 +342,22 @@
     .view { display: none; }
     .view.active { display: block; }
     .settings-card { background: var(--bg-surface); border-radius: 16px; padding: 16px; border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+    .settings-form { display: flex; flex-direction: column; gap: 10px; }
     .input-field { background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); padding: 12px; border-radius: 8px; font-size: 14px; width: 100%; user-select: text; -webkit-user-select: text; }
+    .secret-input-row { position: relative; display: flex; align-items: center; width: 100%; }
+    .secret-input-row .input-field { padding-right: 68px; }
+    .reveal-secret-btn {
+      position: absolute;
+      right: 8px;
+      background: var(--bg-surface-elevated);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 5px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
     .save-btn { background: var(--accent-color); color: #fff; border: none; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer; }
     .channel-item { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--bg-surface); border-radius: 12px; border: 1px solid var(--border-color); cursor: pointer; }
 
@@ -385,7 +417,7 @@
       <div class="logo-icon"></div>
       <div class="logo-text">
         ZenTube
-        <span id="header-version-display" style="font-size: 11px; font-weight: 400; color: var(--text-secondary);">v1.11.16</span>
+        <span id="header-version-display" style="font-size: 11px; font-weight: 400; color: var(--text-secondary);">v1.11.23</span>
       </div>
     </div>
     <div class="header-actions">
@@ -424,25 +456,55 @@
 
     <div id="settings-view" class="view">
       <div class="section-title">Settings & Configuration</div>
+
       <div class="settings-card">
-        <label style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">Custom Stream Proxy URL (Invidious API Instance)</label>
-        <input type="text" id="proxy-url-input" class="input-field" placeholder="e.g. invidious.example.com" />
-        <button class="save-btn" onclick="saveProxyUrl()">Save Proxy URL</button>
+        <form class="settings-form" id="proxy-settings-form" onsubmit="event.preventDefault(); saveProxyUrl();">
+          <label for="proxy-url-input" style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">Custom Stream Proxy URL (Invidious API Instance)</label>
+          <input
+            type="url"
+            id="proxy-url-input"
+            name="zentube_proxy_url"
+            class="input-field"
+            placeholder="e.g. https://invidious.example.com"
+            autocomplete="url"
+            autocapitalize="off"
+            autocorrect="off"
+            spellcheck="false"
+          />
+          <button type="submit" class="save-btn">Save Proxy URL</button>
+        </form>
       </div>
 
       <div class="settings-card" id="invidious-auth-card">
         <div style="font-size: 14px; font-weight: 600; color: var(--text-primary);">Invidious Account (Watch History Sync)</div>
         <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.45;" id="inv-auth-desc">
-          Cross-origin browser cookies are blocked on mobile/PWA views. Generate an Invidious API Token on your instance and paste it below for reliable watch history sync.
+          Authorize a token on your Invidious instance and paste the JSON response below to sync watch history.
         </div>
         
-        <div id="inv-logged-out-section" style="display: flex; flex-direction: column; gap: 10px;">
-          <button class="save-btn" style="background: var(--bg-surface-elevated); border: 1px solid var(--border-color); color: var(--text-primary);" onclick="openInvidiousTokenGenerator()">
-            1. Open Invidious Token Generator
-          </button>
-          <input type="text" id="inv-token-input" class="input-field" placeholder='2. Paste full token JSON (e.g. {"session":"v1:...","scopes":[":*"],"signature":"..."})' />
-          <button class="save-btn" onclick="saveInvidiousToken()">Save Token & Sync History</button>
-        </div>
+        <form class="settings-form" id="invidious-token-form" onsubmit="event.preventDefault(); saveInvidiousToken();">
+          <div id="inv-logged-out-section" style="display: flex; flex-direction: column; gap: 10px;">
+            <button type="button" class="save-btn" style="background: var(--bg-surface-elevated); border: 1px solid var(--border-color); color: var(--text-primary);" onclick="openInvidiousTokenGenerator()">
+              1. Open Invidious Token Generator
+            </button>
+            <label for="inv-token-input" style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">API Token JSON</label>
+            <div class="secret-input-row">
+              <input
+                type="password"
+                id="inv-token-input"
+                name="password"
+                class="input-field"
+                placeholder='2. Paste full token JSON ({"session":"v1:...","scopes":[":*"],"signature":"..."})'
+                autocomplete="current-password"
+                autocapitalize="off"
+                autocorrect="off"
+                spellcheck="false"
+                required
+              />
+              <button type="button" class="reveal-secret-btn" id="toggle-token-visibility-btn" onclick="toggleTokenVisibility()">Show</button>
+            </div>
+            <button type="submit" class="save-btn">Save Token &amp; Sync History</button>
+          </div>
+        </form>
 
         <div id="inv-logged-in-section" style="display: none; flex-direction: column; gap: 10px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -450,17 +512,33 @@
             <div style="font-size: 12px; color: var(--text-secondary);" id="inv-history-count"></div>
           </div>
           <div style="display: flex; gap: 8px;">
-            <button class="save-btn" style="flex: 1; background: var(--bg-surface-elevated); border: 1px solid var(--border-color); color: var(--text-primary);" onclick="syncInvidiousHistory(true)">Sync History Now</button>
-            <button class="save-btn" style="flex: 1; background: var(--bg-surface-elevated); border: 1px solid var(--border-color); color: var(--accent-color);" onclick="logoutInvidious()">Disconnect</button>
+            <button type="button" class="save-btn" style="flex: 1; background: var(--bg-surface-elevated); border: 1px solid var(--border-color); color: var(--text-primary);" onclick="syncInvidiousHistory(true)">Sync History Now</button>
+            <button type="button" class="save-btn" style="flex: 1; background: var(--bg-surface-elevated); border: 1px solid var(--border-color); color: var(--accent-color);" onclick="logoutInvidious()">Disconnect</button>
           </div>
         </div>
       </div>
 
       <div class="settings-card">
-        <label style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">Google OAuth Client ID</label>
-        <input type="text" id="client-id-input" class="input-field" placeholder="Paste your OAuth Client ID here" />
-        <button class="save-btn" onclick="saveClientId()">Save Client ID</button>
+        <form class="settings-form" id="oauth-settings-form" onsubmit="event.preventDefault(); saveClientId();">
+          <label for="client-id-input" style="font-size: 13px; font-weight: 600; color: var(--text-secondary);">Google OAuth Client ID</label>
+          <div class="secret-input-row">
+            <input
+              type="password"
+              id="client-id-input"
+              name="password"
+              class="input-field"
+              placeholder="Paste your OAuth Client ID here"
+              autocomplete="current-password"
+              autocapitalize="off"
+              autocorrect="off"
+              spellcheck="false"
+            />
+            <button type="button" class="reveal-secret-btn" id="toggle-client-id-visibility-btn" onclick="toggleClientIdVisibility()">Show</button>
+          </div>
+          <button type="submit" class="save-btn">Save Client ID</button>
+        </form>
       </div>
+
       <div class="settings-card">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <div>
@@ -540,6 +618,7 @@
       </div>
 
       <div class="custom-controls-overlay" id="custom-controls" onclick="event.stopPropagation()">
+        <div class="fullscreen-title-bar" id="fullscreen-video-title"></div>
         <div class="control-row">
           <button class="custom-skip-btn" onclick="skipRelativeSeconds(-10)" title="Rewind 10 seconds">
             <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
@@ -604,7 +683,7 @@
   <script src="https://accounts.google.com/gsi/client?v=20261112" async defer onload="initGoogleAuth()"></script>
 
   <script>
-    const APP_BUILD_VERSION = '1.11.6';
+    const APP_BUILD_VERSION = '1.11.7';
     const CONTROLS_AUTO_HIDE_MS = 3500;
     
     (function checkAppVersion() {
@@ -692,10 +771,36 @@
     let cumulativeSeekDelta = 0;
     const DOUBLE_TAP_WINDOW_MS = 280;
 
-    // Master-audio clock loop & anti-thrash state
     let audioSyncInterval = null;
     let lastHardSnapTime = 0;
     const HARD_SNAP_COOLDOWN_MS = 3000;
+
+    // Individual tab scroll tracking
+    const tabScrollPositions = {
+      'feed-view': 0,
+      'channels-view': 0,
+      'search-view': 0,
+      'settings-view': 0
+    };
+    let activeTabId = 'feed-view';
+
+    function toggleTokenVisibility() {
+      const tokenInput = document.getElementById('inv-token-input');
+      const toggleBtn = document.getElementById('toggle-token-visibility-btn');
+      if (!tokenInput || !toggleBtn) return;
+      const isHidden = tokenInput.type === 'password';
+      tokenInput.type = isHidden ? 'text' : 'password';
+      toggleBtn.textContent = isHidden ? 'Hide' : 'Show';
+    }
+
+    function toggleClientIdVisibility() {
+      const clientInput = document.getElementById('client-id-input');
+      const toggleBtn = document.getElementById('toggle-client-id-visibility-btn');
+      if (!clientInput || !toggleBtn) return;
+      const isHidden = clientInput.type === 'password';
+      clientInput.type = isHidden ? 'text' : 'password';
+      toggleBtn.textContent = isHidden ? 'Hide' : 'Show';
+    }
 
     async function requestScreenWakeLock() {
       if (!('wakeLock' in navigator) || document.hidden || isUserPaused) return;
@@ -755,7 +860,7 @@
       attachVideoContinuityGuards();
       setupMasterAudioClockGuards();
       setupVisibilityHandler();
-      setupInfiniteScroll();
+      setupMainScrollTracking();
       setupChannelInfiniteScroll();
       setupViewTransitionListeners();
       setupAutoLandscapeFullscreen();
@@ -775,7 +880,6 @@
       }
     });
 
-    // --- Watch Progress & Invidious History Sync ---
     function saveVideoProgress(videoId, currentTime, duration) {
       if (!videoId || isNaN(currentTime) || isNaN(duration) || duration <= 0) return;
       const pct = Math.min(100, Math.max(0, (currentTime / duration) * 100));
@@ -997,6 +1101,7 @@
       localStorage.removeItem('zentube_inv_token');
       localStorage.removeItem('zentube_inv_logged_in');
       localStorage.removeItem('zentube_inv_user');
+      localStorage.removeItem('zentube_inv_account');
       updateInvidiousAuthUI(false);
       showToast('Disconnected Invidious token.');
       logVerbose('[InvidiousAuth] Disconnected Invidious API token.');
@@ -1012,7 +1117,7 @@
       if (isConnected) {
         loggedOutSec.style.display = 'none';
         loggedInSec.style.display = 'flex';
-        statusText.textContent = 'API Token Connected';
+        statusText.textContent = 'Invidious Token Connected';
         if (countText) countText.textContent = `${invidiousWatchedIds.size} watched`;
       } else {
         loggedOutSec.style.display = 'flex';
@@ -1022,7 +1127,6 @@
       }
     }
 
-    // --- Video Follows Master Audio Clock Only ---
     function attachVideoContinuityGuards() {
       ['1', '2'].forEach((id) => {
         const videoEl = document.getElementById(`pingpong-video-${id}`);
@@ -1045,7 +1149,6 @@
       });
     }
 
-    // Master Audio Clock Protection & Recovery
     function setupMasterAudioClockGuards() {
       const audioEl = document.getElementById('master-audio-element');
       if (!audioEl) return;
@@ -1127,16 +1230,23 @@
       });
     }
 
-    function setupInfiniteScroll() {
+    function setupMainScrollTracking() {
       const scrollContainer = document.getElementById('main-scroll-container');
       if (!scrollContainer) return;
+
       scrollContainer.addEventListener('scroll', () => {
-        const feedView = document.getElementById('feed-view');
-        if (!feedView || !feedView.classList.contains('active')) return;
-        const scrollPosition = scrollContainer.scrollTop + scrollContainer.clientHeight;
-        const threshold = scrollContainer.scrollHeight - 300;
-        if (scrollPosition >= threshold && !isFetchingMore) loadMoreFeedItems();
-      });
+        if (activeTabId) {
+          tabScrollPositions[activeTabId] = scrollContainer.scrollTop;
+        }
+
+        if (activeTabId === 'feed-view') {
+          const scrollPosition = scrollContainer.scrollTop + scrollContainer.clientHeight;
+          const threshold = scrollContainer.scrollHeight - 300;
+          if (scrollPosition >= threshold && !isFetchingMore) {
+            loadMoreFeedItems();
+          }
+        }
+      }, { passive: true });
     }
 
     function loadMoreFeedItems() {
@@ -1359,7 +1469,6 @@
       }
     }
 
-    // Master audio sets targetTime first; video follows
     function skipRelativeSeconds(deltaSeconds, showBadge = true) {
       const audioEl = document.getElementById('master-audio-element');
       const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
@@ -1664,7 +1773,6 @@
       setTimeout(() => assertContinuousPlayback(true), 380);
     }
 
-    // Video strictly follows master-audio clock without decoder thrashing
     function syncVideoToMasterAudioClock() {
       const audioEl = document.getElementById('master-audio-element');
       const activeVideo = document.getElementById(`pingpong-video-${activePlayerId}`);
@@ -1697,7 +1805,6 @@
           logVerbose(`[ClockLock] Snapped video (${(drift * 1000).toFixed(0)}ms) to master audio clock.`);
         }
       } else {
-        // Gentle +/- 3% rate adjustment between 60ms and 350ms to converge smoothly without keyframe flushes
         const targetRate = drift > 0 ? 0.97 : 1.03;
         if (activeVideo.playbackRate !== targetRate) {
           activeVideo.playbackRate = targetRate;
@@ -1876,6 +1983,7 @@
       if (fsBtn) fsBtn.title = 'Fullscreen';
       
       document.getElementById('player-title').textContent = title;
+      document.getElementById('fullscreen-video-title').textContent = title;
       document.getElementById('modal-video-title').textContent = title;
       document.getElementById('modal-channel-title').textContent = channel;
       document.getElementById('debug-terminal').innerHTML = '';
@@ -2136,8 +2244,8 @@
       }
 
       stagingVideo.onerror = () => {
-        isHandoffInProgress = false;
         isStagingPrewarmed = false;
+        isHandoffInProgress = false;
         stagingVideo.pause();
         stagingVideo.removeAttribute('src');
         stagingVideo.load();
@@ -2245,7 +2353,7 @@
         localStorage.removeItem('zentube_token');
         updateAuthUI(false);
         masterFeedPool = demoVideos;
-        renderFeedInitial(masterFeedPool, 'video-grid');
+        renderFeedInitial(masterFeedPool, 'video-grid', true);
       } else {
         clientId = document.getElementById('client-id-input').value.trim() || localStorage.getItem('zentube_client_id') || '';
         if (!clientId) {
@@ -2274,10 +2382,15 @@
     }
 
     async function fetchSubscribedChannelsFeed() {
+      tabScrollPositions['feed-view'] = 0;
+      if (activeTabId === 'feed-view') {
+        const sc = document.getElementById('main-scroll-container');
+        if (sc) sc.scrollTop = 0;
+      }
       renderFeedSkeleton('video-grid', 6);
       if (!accessToken) {
         masterFeedPool = demoVideos;
-        renderFeedInitial(masterFeedPool, 'video-grid');
+        renderFeedInitial(masterFeedPool, 'video-grid', true);
         return;
       }
       try {
@@ -2302,7 +2415,7 @@
             localStorage.removeItem('zentube_token');
             updateAuthUI(false);
             masterFeedPool = demoVideos;
-            renderFeedInitial(masterFeedPool, 'video-grid');
+            renderFeedInitial(masterFeedPool, 'video-grid', true);
             return;
           }
 
@@ -2314,7 +2427,7 @@
 
         if (allSubscriptions.length === 0) {
           masterFeedPool = demoVideos;
-          renderFeedInitial(masterFeedPool, 'video-grid');
+          renderFeedInitial(masterFeedPool, 'video-grid', true);
           return;
         }
         
@@ -2359,12 +2472,12 @@
         
         allVideos.sort((a, b) => b.timestamp - a.timestamp);
         masterFeedPool = allVideos.length > 0 ? allVideos : demoVideos;
-        renderFeedInitial(masterFeedPool, 'video-grid');
+        renderFeedInitial(masterFeedPool, 'video-grid', true);
         
         if (syncStatus) { syncStatus.textContent = 'Live Feed'; syncStatus.style.color = 'var(--success-color)'; }
       } catch (err) {
         masterFeedPool = demoVideos;
-        renderFeedInitial(masterFeedPool, 'video-grid');
+        renderFeedInitial(masterFeedPool, 'video-grid', true);
       }
     }
 
@@ -2378,12 +2491,21 @@
       grid.innerHTML = html;
     }
 
-    function renderFeedInitial(videos, containerId) {
+    function renderFeedInitial(videos, containerId, resetScroll = false) {
       const grid = document.getElementById(containerId);
       if (!grid) return;
       grid.innerHTML = '';
       displayedVideoCount = Math.min(PAGE_SIZE, videos.length);
       appendFeedBatch(videos.slice(0, displayedVideoCount), containerId);
+
+      if (resetScroll) {
+        const targetTab = containerId === 'search-grid' ? 'search-view' : 'feed-view';
+        tabScrollPositions[targetTab] = 0;
+        if (activeTabId === targetTab) {
+          const sc = document.getElementById('main-scroll-container');
+          if (sc) sc.scrollTop = 0;
+        }
+      }
     }
 
     function appendFeedBatch(videos, containerId) {
@@ -2492,6 +2614,11 @@
       const query = document.getElementById('search-input').value.trim();
       if (!query) return;
       const grid = document.getElementById('search-grid');
+      tabScrollPositions['search-view'] = 0;
+      if (activeTabId === 'search-view') {
+        const sc = document.getElementById('main-scroll-container');
+        if (sc) sc.scrollTop = 0;
+      }
       grid.innerHTML = '<p style="color: var(--text-secondary);">Searching...</p>';
       try {
         const res = await fetch(`https://www.googleapis.com/youtube/v3/search?q=${encodeURIComponent(query)}&part=snippet&type=video&maxResults=12`, { headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {} });
@@ -2502,7 +2629,7 @@
             const bestThumb = thumb.maxres?.url || thumb.standard?.url || thumb.high?.url || thumb.medium?.url || thumb.default?.url || `https://i.ytimg.com/vi/${item.id.videoId}/hqdefault.jpg`;
             return { id: item.id.videoId, title: item.snippet.title, channel: item.snippet.channelTitle, thumbnail: bestThumb };
           });
-          renderFeedInitial(results, 'search-grid');
+          renderFeedInitial(results, 'search-grid', true);
         }
       } catch (err) { grid.innerHTML = '<p style="color: var(--text-secondary);">Search failed.</p>'; }
     }
@@ -2611,20 +2738,41 @@
     }
     
     function switchTab(viewId, el) {
+      const scrollContainer = document.getElementById('main-scroll-container');
+      if (scrollContainer && activeTabId) {
+        tabScrollPositions[activeTabId] = scrollContainer.scrollTop;
+      }
+
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-      document.getElementById(viewId).classList.add('active');
+
+      const targetView = document.getElementById(viewId);
+      if (targetView) targetView.classList.add('active');
       if (el) el.closest('.nav-item').classList.add('active');
+
+      activeTabId = viewId;
+      const savedScrollTop = tabScrollPositions[viewId] || 0;
+
+      if (scrollContainer) {
+        requestAnimationFrame(() => {
+          scrollContainer.scrollTop = savedScrollTop;
+        });
+      }
     }
 
     function manualRefreshFeed() {
+      tabScrollPositions['feed-view'] = 0;
+      if (activeTabId === 'feed-view') {
+        const sc = document.getElementById('main-scroll-container');
+        if (sc) sc.scrollTop = 0;
+      }
       if (invLoggedIn && proxyUrl) syncInvidiousHistory(false);
       if (accessToken) fetchSubscribedChannelsFeed();
       else {
         renderFeedSkeleton('video-grid', 6);
         setTimeout(() => {
           masterFeedPool = demoVideos;
-          renderFeedInitial(masterFeedPool, 'video-grid');
+          renderFeedInitial(masterFeedPool, 'video-grid', true);
         }, 400);
       }
     }
